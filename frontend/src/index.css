@@ -56,6 +56,98 @@ main.wide {
   margin: 0;
 }
 
+.hint {
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.hint.warning {
+  opacity: 1;
+  color: #b45309;
+}
+
+@media (prefers-color-scheme: dark) {
+  .hint.warning {
+    color: #fbbf24;
+  }
+}
+
+.muted {
+  opacity: 0.7;
+}
+
+.autocomplete {
+  position: relative;
+}
+
+.autocomplete input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.autocomplete-list {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  width: max(100%, 22rem);
+  max-height: 18rem;
+  overflow-y: auto;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: Canvas;
+  color: CanvasText;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.15);
+}
+
+.autocomplete-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+}
+
+.autocomplete-list li .muted {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autocomplete-list li.active {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.tag {
+  font-size: 0.75rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+
+.tag-crypto {
+  color: #7c3aed;
+}
+
+.tag-stock {
+  color: #0369a1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tag-crypto {
+    color: #c4b5fd;
+  }
+
+  .tag-stock {
+    color: #7dd3fc;
+  }
+}
+
 .transaction-table {
   width: 100%;
   border-collapse: collapse;

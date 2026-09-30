@@ -28,6 +28,8 @@ cd MyStocks
 cp .env.example .env
 # then set JWT_SECRET_KEY in .env:
 python -c "import secrets; print(secrets.token_urlsafe(48))"
+# and FINNHUB_API_KEY (free, no card: https://finnhub.io/register) for stock search/quotes.
+# Crypto (CoinGecko) works without a key.
 ```
 
 ### Backend (without Docker)
@@ -48,6 +50,8 @@ Tests and lint (integration tests need Postgres running; they create and use a s
 pytest
 ruff check . && ruff format --check .
 ```
+
+Real-network tests against Finnhub/CoinGecko are excluded by default (so CI can't flake on them). Run them explicitly with `pytest -m live_network`; the Finnhub ones skip unless `FINNHUB_API_KEY` is set.
 
 New migration after changing a model: `alembic revision --autogenerate -m "..."`, then review the generated file.
 
@@ -74,4 +78,4 @@ docker compose up --build
 
 ## Status
 
-M2 (transactions) — auth plus a per-user transaction ledger with server-side oversell validation. See [ROADMAP.md](ROADMAP.md) for milestones and known limitations.
+M4 (market data) — auth, a transaction ledger with oversell validation, and symbol search + price autofill via Finnhub/CoinGecko. See [ROADMAP.md](ROADMAP.md) for milestones and known limitations.

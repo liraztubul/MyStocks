@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     cookie_secure: bool = True
 
+    # Optional so the app still boots without them; stock lookups then report "not configured".
+    finnhub_api_key: str | None = None
+    coingecko_demo_api_key: str | None = None
+    market_data_timeout_seconds: float = 5.0
+
     @property
     def database_url(self) -> str:
         return (

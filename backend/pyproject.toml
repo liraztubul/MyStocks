@@ -13,12 +13,15 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "argon2-cffi>=23.1",
     "pyjwt>=2.9",
+    "httpx2>=2.13",
+    "cachetools>=5.3",
+    # IANA zone data for zoneinfo on platforms without a system tz database (Windows, slim images).
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2",
-    "httpx2>=2.13",
     "ruff>=0.6",
 ]
 
@@ -31,6 +34,10 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not live_network'"
+markers = [
+    "live_network: calls real Finnhub/CoinGecko APIs; excluded by default, run with -m live_network",
+]
 
 [tool.ruff]
 line-length = 100

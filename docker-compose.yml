@@ -27,6 +27,8 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      COINGECKO_DEMO_API_KEY: ${COINGECKO_DEMO_API_KEY:-}
     # Migrate on boot so a fresh volume is usable immediately; fine for a single replica.
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
