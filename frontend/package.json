@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
+    "big.js": "^7.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@types/big.js": "^7.0.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

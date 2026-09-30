@@ -25,7 +25,9 @@ Prerequisites: Python 3.10+, Node 22+, and (optionally) Docker.
 ```bash
 git clone https://github.com/liraztubul/MyStocks.git
 cd MyStocks
-cp .env.example .env   # then edit values if you like
+cp .env.example .env
+# then set JWT_SECRET_KEY in .env:
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 ### Backend (without Docker)
@@ -35,15 +37,19 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
+docker compose up -d postgres    # or any Postgres matching the POSTGRES_* vars in .env
+alembic upgrade head
 uvicorn app.main:app --reload    # http://localhost:8000/api/health
 ```
 
-Tests and lint:
+Tests and lint (integration tests need Postgres running; they create and use a separate `<POSTGRES_DB>_test` database):
 
 ```bash
 pytest
 ruff check . && ruff format --check .
 ```
+
+New migration after changing a model: `alembic revision --autogenerate -m "..."`, then review the generated file.
 
 ### Frontend (without Docker)
 
@@ -64,7 +70,8 @@ docker compose up --build
 - Frontend: http://localhost:8080 (nginx proxies `/api` to the backend)
 - Backend: http://localhost:8000/api/health
 - Postgres: `localhost:5432`, data persisted in the `postgres_data` volume
+- The backend runs `alembic upgrade head` on startup.
 
 ## Status
 
-M0 (skeleton) — health endpoint wired end to end, no domain logic yet.
+M2 (transactions) — auth plus a per-user transaction ledger with server-side oversell validation. See [ROADMAP.md](ROADMAP.md) for milestones and known limitations.

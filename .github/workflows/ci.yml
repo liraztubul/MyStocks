@@ -8,6 +8,26 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mystocks
+          POSTGRES_PASSWORD: mystocks
+          POSTGRES_DB: mystocks
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mystocks"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_USER: mystocks
+      POSTGRES_PASSWORD: mystocks
+      POSTGRES_DB: mystocks
+      POSTGRES_HOST: localhost
+      JWT_SECRET_KEY: ci-only-secret-key-that-is-at-least-32-chars
     defaults:
       run:
         working-directory: backend
@@ -21,6 +41,11 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
+      - name: Migrations apply cleanly and match the models
+        run: |
+          alembic upgrade head
+          alembic check
+          alembic downgrade base
       - run: pytest
 
   frontend:
