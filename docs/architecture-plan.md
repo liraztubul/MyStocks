@@ -17,6 +17,22 @@ Living reference for whoever (Claude Code included) picks up work on this repo. 
 - Daily change (M5): the `Quote` dataclass gained three optional fields, `reference_price`, `reference_at` and `reference_kind` (no provider method signatures changed). Finnhub: `pc`, with `reference_at` = 00:00 New York on the quote's session (`market_data/dates.us_session_start`, DST-aware). A zero or missing `pc` gives no reference, and unknown tickers (zeroed quote) are already `SymbolNotFound`. CoinGecko: `include_24hr_change`, base = `price / (1 + pct/100)` (`price_before_change`), `reference_at` = `as_of − 24h`, and a null % gives no reference. The cache and stale fallback carry the fields unchanged, so a stale quote keeps its own consistent c/pc pair. The pure `domain/daily_change.py` computes `qty_now·P − qty_at_ref·R − bought_since + sold_since` (buys since the reference use the buy price), and missing data gives `None`, never 0. The API exposes `day_change*` per holding and `total_day_change*` + `day_change_bases` (so a mixed stock+crypto total is labelled) on the summary. The total covers open holdings only.
 - Dashboard UI (M5): plain-SVG donut (no chart dependency). At most 5 slices + "Other", in alphabetical ring order, with a categorical palette checked by the dataviz validator for ring-adjacent pairs in light (#fff) and dark (#121212). Prices poll every 60s (= cache TTL), paused when the tab is hidden (TanStack `refetchIntervalInBackground: false`, checked in the v5.104 source). Strings live in `frontend/src/strings.ts` with a pinned date locale, CSS uses logical properties for RTL, and there's temporary hash navigation (router in M6).
 - Frontend design system (M5.6): all colours are CSS custom properties on `:root`, with a dark set under `:root[data-theme='dark']`. Components reference tokens only (audited: no colour literals outside the two token blocks). Text/background pairs are WCAG-checked at ≥4.5:1 in both themes, and the dark primary button pair (white on `#6a5ff5`, 4.60:1) must be recomputed before it changes. The theme is light/dark/system: `src/theme.ts` + `useTheme`, saved in `localStorage` inside try/catch, and applied before first paint by an inline script in `index.html` (needs a CSP hash or nonce at deploy). The layout is mobile first: a bottom tab bar below 768px, holdings as cards below 1024px, other tables scroll inside their card with a sticky symbol column, and touch targets are ≥44px. Data text is ≥14px with tabular numerals; 12px is only for secondary labels. `prefers-reduced-motion` turns off transitions and shimmer. All copy lives in `src/strings.ts`, with no new dependencies (system font stack, inline SVG icons).
+- Production (M5.5): Vercel (static SPA + CSP + `/api` reverse proxy) → Render free (Docker; `start.sh` runs `alembic upgrade head` then uvicorn, since free has no pre-deploy hook) → Neon (direct connection, `sslmode=require`).
+  - **Single origin:** the browser only talks to Vercel, so the cookie stays first-party.
+  - **Origin lock:** Vercel adds `x-origin-secret` (from its env) to proxied requests; the API returns a generic 403 to `/api` without it, compared constant-time, and only then trusts `X-Forwarded-For` for client IP.
+  - **CSRF:** `ALLOWED_ORIGINS` checks `Origin` on state-changing requests.
+  - **Caching:** `Cache-Control: no-store` on all `/api`.
+  - **Signup:** an invite code (`REGISTRATION_INVITE_CODE`, constant-time; unset in production means disabled).
+  - **Rate limits:** in-process sliding windows (valid because free means a single instance).
+  - **Fail-fast:** the production config fails at startup without echoing values (`hide_input_in_errors`).
+  - **Engine:** `pool_pre_ping`, `pool_recycle=240`, pool 3+2, because Neon suspends after 5 min.
+  - **Migrations:** serialized by a Postgres advisory lock.
+  - **Probes:** `/healthz` (no DB) for Render's health check, `/readyz` (DB).
+  - **No keep-alive pinger:** the workspace's free hours are shared.
+  - **Cold-start UX:** queries retry 502/503/504 and network errors every 5 s for about 2 min, and a "server is waking up" notice appears after 8 s.
+  - **CSP:** strict, with a SHA-256 for the inline theme script; drift is checked inside the Vercel build command and in CI.
+  - **Backups:** daily `pg_dump` → gpg AES256 → 14-day artifact; restore tested.
+  - **CD:** Render `checksPass`; Vercel Deployment Checks (CLI fallback documented).
 - Oversell validation: replays a symbol's trade history in `executed_at` order (buys before sells at the same timestamp), not just a final-totals comparison — catches backdated sells. See `backend/app/domain/holdings.py`. Writes are serialized per-user via `SELECT ... FOR UPDATE` on the user row.
 
 ## Repo structure
@@ -26,7 +42,9 @@ MyStocks/
 ├── backend/app/{api,core,db,domain,market_data,schemas}/
 ├── backend/tests/{unit,integration,live}/   (live = real-network, excluded by default)
 ├── frontend/src/{api,components,pages,hooks}/
-├── docker-compose.yml, .env.example
+├── docker-compose.yml, .env.example, render.yaml
+├── frontend/vercel.json        (proxy, CSP, security headers)
+├── .github/workflows/          (ci.yml gates deploys; backup.yml encrypted pg_dump)
 ├── docs/architecture-plan.md   (this file)
 └── ROADMAP.md                  (phase 2/3/4 hooks + known MVP gaps)
 ```
@@ -42,6 +60,7 @@ MyStocks/
 | M4 | Market data provider (Finnhub + CoinGecko, TTL cache) | Done (pulled ahead of M3) |
 | M5 | Portfolio dashboard | Done, verified live in browser |
 | M5.6 | Visual redesign (tokens, theming, mobile-first, a11y) | Done, verified in browser |
+| M5.5 | Free-tier production deploy (Vercel + Render + Neon) | Built and tested locally; live verification pending |
 | M6 | Price chart (+ replace hash navigation with a router) | Next |
 | M7 | Polish + deploy | Not started |
 

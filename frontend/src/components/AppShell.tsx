@@ -3,6 +3,7 @@ import type { User } from '../api/auth'
 import type { Route } from '../hooks/useHashRoute'
 import { t } from '../strings'
 import { Icon, type IconName } from './Icon'
+import { ServerWakeNotice } from './ServerWakeNotice'
 import { ThemeToggle } from './ThemeToggle'
 
 const LINKS: { route: Route; href: string; label: string; icon: IconName }[] = [
@@ -44,7 +45,10 @@ export function AppShell({ user, route, children }: { user: User; route: Route; 
           </div>
         </div>
       </header>
-      <main className="container page">{children}</main>
+      <main className="container page">
+        <ServerWakeNotice />
+        {children}
+      </main>
       <footer className="container disclaimer">
         {t.disclaimer.map((line) => (
           <p key={line}>{line}</p>

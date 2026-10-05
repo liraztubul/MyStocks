@@ -16,5 +16,6 @@ RUN pip install --no-deps .
 RUN useradd --create-home appuser
 USER appuser
 
+# Render injects PORT; compose and local runs fall back to 8000 (see start.sh).
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "start.sh"]

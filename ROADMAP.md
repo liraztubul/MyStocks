@@ -9,6 +9,7 @@
 | M3 | P/L engine (average cost) + holdings/summary/realized endpoints, stale-price fallback | Done |
 | M5 | Portfolio dashboard: summary cards, allocation donut, daily change, realized trades | Done |
 | M5.6 | Visual redesign: design tokens, light/dark/system theme, mobile-first layout, skeletons, empty state | Done |
+| M5.5 | Free-tier production deploy: Vercel + Render + Neon, invite-only signup, rate limits, CSP, encrypted backups | Built; live verification pending |
 | M6 | Price charts (TradingView Lightweight Charts) + a real router | Next |
 
 ## Known MVP limitations
@@ -139,3 +140,30 @@ CoinGecko responses on 2026-09-30.
   inside their card with a sticky symbol column at every width.
 - **RTL readiness:** layout uses logical properties throughout, but no page has been rendered
   with `dir="rtl"` yet.
+
+### Deployment (M5.5)
+
+- **Vercel CD fallback.** If Deployment Checks aren't available on the Hobby plan (the docs
+  don't say which plans have them), disable Git-triggered production deploys
+  (`"git": {"deploymentEnabled": {"main": false}}` in `vercel.json`) and add a CI job that
+  runs `npx vercel deploy --prod` after `backend` and `frontend` pass. That needs GitHub
+  secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`.
+- **Origin-secret rotation has a short 403 window.** The API accepts exactly one
+  `ORIGIN_SECRET`. Accepting a comma-separated old+new pair during rotation would make it
+  seamless.
+- **Rate limits are in-process** and reset on every spin-down; scaling out would need a shared
+  store such as Redis. Limits: login 10/IP/5 min plus 5 failures per (IP, email)/15 min;
+  register 5/IP/hour.
+- **No keep-alive by design.** The Render workspace's 750 free instance-hours are shared with
+  another always-on service, so MyStocks sleeps when idle and every first visit after
+  15 minutes cold-starts (~1 min).
+- **To confirm on first deploy** (not stated in the docs I could read):
+  - Docker runs on Render's *free* instance type (fallback: `runtime: python` with build and
+    start commands);
+  - Vercel passes `Set-Cookie` through `routes` with an external `dest`, and keeps the query
+    string (needed by `?symbol=`, `?q=`, `?date=`);
+  - the shape of `X-Forwarded-For` as Render receives it;
+  - Neon's Postgres major version matching the `postgres:17` dump client;
+  - whether Render counts spin-up time toward instance hours.
+- **Migrations must stay backward-compatible** (expand then contract), because the old
+  instance serves while the new one migrates.

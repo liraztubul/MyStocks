@@ -1,5 +1,7 @@
 import { useId, useState, type FormEvent } from 'react'
+import { isServerWaking } from '../api/client'
 import { Icon } from '../components/Icon'
+import { ServerWakeNotice } from '../components/ServerWakeNotice'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { useLogin, useRegister } from '../hooks/useAuth'
 import { t } from '../strings'
@@ -11,18 +13,24 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const loginMutation = useLogin()
   const registerMutation = useRegister()
   const mutation = mode === 'login' ? loginMutation : registerMutation
   const hintId = useId()
+  const inviteHintId = useId()
 
   const passwordsMismatch =
     mode === 'register' && confirmPassword.length > 0 && password !== confirmPassword
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    if (mode === 'register' && password !== confirmPassword) return
-    mutation.mutate({ email, password })
+    if (mode === 'register') {
+      if (password !== confirmPassword) return
+      registerMutation.mutate({ email, password, invite_code: inviteCode })
+    } else {
+      loginMutation.mutate({ email, password })
+    }
   }
 
   function toggleMode() {
@@ -87,6 +95,24 @@ export function LoginPage() {
               />
             </label>
           )}
+          {mode === 'register' && (
+            <label className="field">
+              <span className="field-label">{t.auth.inviteCode}</span>
+              <input
+                type="text"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                required
+                aria-describedby={inviteHintId}
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+              />
+              <span id={inviteHintId} className="field-hint">
+                {t.auth.inviteHint}
+              </span>
+            </label>
+          )}
           {passwordsMismatch && (
             <p role="alert" className="form-error">
               {t.auth.passwordsMismatch}
@@ -94,7 +120,7 @@ export function LoginPage() {
           )}
           {mutation.error && (
             <p role="alert" className="form-error">
-              {mutation.error.message}
+              {isServerWaking(mutation.error) ? t.wake.retryAction : mutation.error.message}
             </p>
           )}
           <button
@@ -108,6 +134,7 @@ export function LoginPage() {
         <button type="button" className="button button-ghost button-block" onClick={toggleMode}>
           {mode === 'login' ? t.auth.switchToRegister : t.auth.switchToLogin}
         </button>
+        <ServerWakeNotice />
       </main>
     </div>
   )

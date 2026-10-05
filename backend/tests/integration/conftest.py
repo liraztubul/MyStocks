@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core import security
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 
-TEST_DB_URL = make_url(settings.database_url).set(database=f"{settings.postgres_db}_test")
+BASE_URL = make_url(settings.database_url)
+TEST_DB_URL = BASE_URL.set(database=f"{BASE_URL.database}_test")
 
 
 @pytest.fixture(scope="session")
@@ -34,6 +36,14 @@ def engine() -> Iterator[Engine]:
     Base.metadata.create_all(test_engine)
     yield test_engine
     test_engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits() -> Iterator[None]:
+    # The limiter is process-global; each test starts with clean counters.
+    limiter.reset()
+    yield
+    limiter.reset()
 
 
 @pytest.fixture(autouse=True)

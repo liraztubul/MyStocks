@@ -1,0 +1,58 @@
+name: Database backup
+
+# Daily encrypted pg_dump of the Neon database, kept as a workflow artifact for 14 days.
+# Artifacts on a public repo can be downloaded by anyone with read access, so the dump is
+# encrypted before upload and never written to disk in plaintext.
+# Note: GitHub disables scheduled workflows in public repos after 60 days with no repo activity.
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC daily (off the hour; schedules can run late under load)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check secrets are configured
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=0
+          [ -n "$NEON_DIRECT_URL" ] || { echo "::error::Secret NEON_DIRECT_URL is not set"; missing=1; }
+          [ ${#BACKUP_PASSPHRASE} -ge 20 ] || { echo "::error::Secret BACKUP_PASSPHRASE must be 20+ characters"; missing=1; }
+          exit $missing
+
+      - name: Dump, compress and encrypt
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          gpg --version | head -1
+          # pg_dump must be at least the server's major version; keep this in step with Neon's.
+          # The URL travels as an env var into the container, never as a logged argument.
+          docker run --rm -e PGURL="$NEON_DIRECT_URL" postgres:17 \
+              sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' \
+            | gpg --batch --yes --symmetric --cipher-algo AES256 \
+                --pinentry-mode loopback --passphrase-fd 3 \
+                --output mystocks.dump.gpg 3<<<"$BACKUP_PASSPHRASE"
+          size=$(stat -c %s mystocks.dump.gpg)
+          echo "Encrypted dump: ${size} bytes"
+          [ "$size" -gt 1024 ] || { echo "::error::Dump is suspiciously small"; exit 1; }
+
+      - name: Upload encrypted dump
+        uses: actions/upload-artifact@v4
+        with:
+          name: mystocks-db-${{ github.run_id }}
+          path: mystocks.dump.gpg
+          retention-days: 14
+          if-no-files-found: error

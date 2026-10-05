@@ -1,11 +1,24 @@
-from pydantic import Field
+from typing import Literal
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import make_url
+
+# The value .env.example ships with; production must never run with it.
+DEV_JWT_PLACEHOLDER = "replace-me-with-a-random-string-of-at-least-32-chars"
 
 
 class Settings(BaseSettings):
     # Repo-root .env when run from backend/; real env vars (e.g. from compose) take precedence.
-    model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
+    # hide_input_in_errors: a validation error must never echo setting values (secrets) to logs.
+    model_config = SettingsConfigDict(
+        env_file=("../.env", ".env"), extra="ignore", hide_input_in_errors=True
+    )
 
+    environment: Literal["development", "production"] = "development"
+
+    # Production supplies one URL (Neon); local dev and compose build it from parts.
+    database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
     postgres_user: str = "mystocks"
     postgres_password: str = "mystocks"
     postgres_db: str = "mystocks"
@@ -23,12 +36,56 @@ class Settings(BaseSettings):
     coingecko_demo_api_key: str | None = None
     market_data_timeout_seconds: float = 5.0
 
+    # Unset: open registration in development, registration disabled in production.
+    registration_invite_code: str | None = None
+    # Shared with Vercel, which adds it to every proxied /api request. Unset disables the check.
+    origin_secret: str | None = None
+    # Comma-separated; state-changing requests from any other Origin are refused when set.
+    allowed_origins: str | None = None
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
+
     @property
     def database_url(self) -> str:
+        if self.database_url_override:
+            # Neon hands out postgresql:// URLs; pin the psycopg 3 driver, keep sslmode etc.
+            return (
+                make_url(self.database_url_override)
+                .set(drivername="postgresql+psycopg")
+                .render_as_string(hide_password=False)
+            )
         return (
             f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+
+    @property
+    def allowed_origin_list(self) -> list[str]:
+        return [o.strip().rstrip("/") for o in (self.allowed_origins or "").split(",") if o.strip()]
+
+    @model_validator(mode="after")
+    def _require_production_settings(self) -> "Settings":
+        if not self.is_production:
+            return self
+        problems = []
+        if not self.database_url_override:
+            problems.append("DATABASE_URL is required")
+        if self.jwt_secret_key == DEV_JWT_PLACEHOLDER:
+            problems.append("JWT_SECRET_KEY is still the .env.example placeholder")
+        if not self.origin_secret or len(self.origin_secret) < 32:
+            problems.append("ORIGIN_SECRET must be set (32+ characters)")
+        if not self.allowed_origin_list:
+            problems.append("ALLOWED_ORIGINS is required")
+        if not self.finnhub_api_key:
+            problems.append("FINNHUB_API_KEY is required")
+        if not self.cookie_secure:
+            problems.append("COOKIE_SECURE must be true")
+        if problems:
+            # Fail at import time, so a misconfigured deploy never starts serving.
+            raise ValueError("Invalid production configuration: " + "; ".join(problems))
+        return self
 
 
 settings = Settings()

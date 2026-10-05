@@ -25,6 +25,12 @@ export const t = {
     gain: 'up',
     loss: 'down',
   },
+  wake: {
+    title: 'Server is waking up.',
+    body: 'The free hosting plan sleeps when idle, so this can take about a minute. It will continue automatically.',
+    gaveUp: "The server didn't respond. Please reload the page in a minute.",
+    retryAction: 'The server was still waking up. Please try again in a few seconds.',
+  },
   auth: {
     tagline: 'Track your stocks and crypto in one place.',
     logIn: 'Log in',
@@ -33,6 +39,8 @@ export const t = {
     email: 'Email',
     password: 'Password',
     confirmPassword: 'Confirm password',
+    inviteCode: 'Invite code',
+    inviteHint: 'Registration is invite-only. Ask the owner for a code.',
     passwordHint: 'At least 8 characters.',
     passwordsMismatch: "Passwords don't match",
     switchToRegister: 'Need an account? Register',

@@ -14,6 +14,9 @@ class _EmailBody(BaseModel):
 
 class RegisterRequest(_EmailBody):
     password: str = Field(min_length=8, max_length=128)
+    # Checked against REGISTRATION_INVITE_CODE; optional in the schema so a missing code gets the
+    # same generic refusal as a wrong one rather than a revealing 422.
+    invite_code: str | None = Field(default=None, max_length=256)
 
 
 class LoginRequest(_EmailBody):

@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -16,6 +18,14 @@ AUTH_COOKIE_NAME = "access_token"
 _hasher = PasswordHasher()
 # Verified against when the email doesn't exist, so login timing doesn't reveal registered emails.
 _DUMMY_HASH = _hasher.hash("dummy-password-for-timing")
+
+
+def secrets_equal(supplied: str, expected: str) -> bool:
+    """Constant-time comparison. Hashing first equalizes lengths, so even the length of the
+    expected secret doesn't leak through timing."""
+    return hmac.compare_digest(
+        hashlib.sha256(supplied.encode()).digest(), hashlib.sha256(expected.encode()).digest()
+    )
 
 
 def hash_password(password: str) -> str:

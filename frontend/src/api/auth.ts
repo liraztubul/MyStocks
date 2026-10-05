@@ -10,8 +10,12 @@ export interface Credentials {
   password: string
 }
 
-export function register(credentials: Credentials): Promise<User> {
-  return apiPost<User>('/auth/register', credentials)
+export interface Registration extends Credentials {
+  invite_code: string
+}
+
+export function register(registration: Registration): Promise<User> {
+  return apiPost<User>('/auth/register', registration)
 }
 
 export function login(credentials: Credentials): Promise<User> {

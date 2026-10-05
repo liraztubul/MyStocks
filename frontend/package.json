@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "typecheck": "tsc -b",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:csp": "node scripts/check-csp-hash.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",

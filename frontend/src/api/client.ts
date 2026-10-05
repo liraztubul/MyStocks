@@ -12,6 +12,29 @@ export class ApiError extends Error {
 // so the browser always talks same-origin and we avoid CORS entirely.
 const API_BASE = '/api'
 
+// The free-tier backend sleeps when idle and takes about a minute to wake. While it does, the
+// proxy can answer 502/503/504 or the connection can drop; those mean "try again", not "failed".
+const WAKING_STATUSES = new Set([502, 503, 504])
+const WAKE_RETRY_DELAY_MS = 5_000
+const WAKE_MAX_RETRIES = 24 // ~2 minutes at 5 s
+const OTHER_MAX_RETRIES = 3
+
+export function isServerWaking(error: unknown): boolean {
+  if (error instanceof ApiError) return WAKING_STATUSES.has(error.status)
+  // fetch rejects with a TypeError on network failure (no HTTP response at all).
+  return error instanceof TypeError
+}
+
+// Shared TanStack Query retry policy: wait out a cold start, give up quickly on anything else.
+export function retryUnlessDefinite(failureCount: number, error: unknown): boolean {
+  if (error instanceof ApiError && error.status < 500) return false
+  return failureCount < (isServerWaking(error) ? WAKE_MAX_RETRIES : OTHER_MAX_RETRIES)
+}
+
+export function retryDelay(attempt: number, error: unknown): number {
+  return isServerWaking(error) ? WAKE_RETRY_DELAY_MS : Math.min(1000 * 2 ** attempt, 30_000)
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
