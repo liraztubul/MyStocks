@@ -8,6 +8,7 @@
 | M4 | Market data: Finnhub + CoinGecko search, quotes, price-on-date autofill (pulled ahead of M3) | Done |
 | M3 | P/L engine (average cost) + holdings/summary/realized endpoints, stale-price fallback | Done |
 | M5 | Portfolio dashboard: summary cards, allocation donut, daily change, realized trades | Done |
+| M5.6 | Visual redesign: design tokens, light/dark/system theme, mobile-first layout, skeletons, empty state | Done |
 | M6 | Price charts (TradingView Lightweight Charts) + a real router | Next |
 
 ## Known MVP limitations
@@ -115,3 +116,26 @@ CoinGecko responses on 2026-09-30.
 - **UI strings** for the new and touched components live in `frontend/src/strings.ts`
   (dates follow its `locale`). The older login and transaction-form copy hasn't been moved
   there yet. No Hebrew yet.
+
+### Frontend / design (M5.6)
+
+- **CSP for the pre-paint theme script.** `index.html` has a small classic inline `<script>`
+  that applies the saved theme before first paint, to avoid a flash of the wrong theme. A
+  production Content-Security-Policy without `'unsafe-inline'` will need a **hash** (it's static,
+  so `'sha256-…'` of its exact text works) or a per-response **nonce** for it. That's part of the
+  M7 deploy work. Verified: Vite leaves the script byte-identical in `dist/index.html` (676 bytes)
+  and places it before the module bundle.
+- **The theme logic is duplicated** between that inline script and `src/theme.ts` (storage key,
+  the dark-mode test, the `theme-color` values), because the script must run before any module
+  loads. Both carry a "keep in sync" comment.
+- **No frontend test runner.** Lint, typecheck, build and the throwaway Playwright checks in
+  the scratchpad are the only frontend gates. Adding Vitest + Testing Library (plus a Playwright
+  smoke test in CI) is the natural next step.
+- **Native date-time picker:** the transaction form's `datetime-local` input renders in the
+  browser/OS locale (e.g. `dd/mm/yyyy`), not `strings.ts`'s `locale`. Browsers don't let pages
+  control that.
+- **Holdings switch from cards to a table at 1024px,** not the 768px first proposed. At tablet
+  width the table pushed the P/L columns behind a sideways scroll. The other tables scroll
+  inside their card with a sticky symbol column at every width.
+- **RTL readiness:** layout uses logical properties throughout, but no page has been rendered
+  with `dir="rtl"` yet.

@@ -1,7 +1,8 @@
 import type { DayChangeBasis } from '../api/portfolio'
 import { t } from '../strings'
 import { basisLabel, referenceLabel } from './dayChangeLabels'
-import { formatSignedMoney, formatSignedPercent, gainClass } from './format'
+import { formatSignedMoney, formatSignedPercent } from './format'
+import { Trend } from './Trend'
 
 interface Props {
   amount: string | null
@@ -16,13 +17,11 @@ export function DayChange({ amount, pct, basis, referenceAt }: Props) {
   if (amount === null || basis === null) return <span className="muted">{t.common.noValue}</span>
   return (
     <span>
-      <span className={gainClass(amount)}>
-        {formatSignedMoney(amount)}
-        {pct !== null && ` (${formatSignedPercent(pct)})`}
-      </span>
-      <span className="sub">
-        {referenceAt ? referenceLabel(basis, referenceAt) : basisLabel(basis)}
-      </span>
+      <Trend
+        value={amount}
+        text={`${formatSignedMoney(amount)}${pct !== null ? ` (${formatSignedPercent(pct)})` : ''}`}
+      />
+      <span className="sub">{referenceAt ? referenceLabel(basis, referenceAt) : basisLabel(basis)}</span>
     </span>
   )
 }

@@ -6,6 +6,8 @@ import type { AssetType, Side, Transaction } from '../api/transactions'
 import { usePriceOn } from '../hooks/useAssets'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useCreateTransaction } from '../hooks/useTransactions'
+import { t } from '../strings'
+import { Icon } from './Icon'
 import { SymbolAutocomplete } from './SymbolAutocomplete'
 
 const DECIMAL_PATTERN = '\\d+(\\.\\d{1,10})?'
@@ -14,8 +16,8 @@ const DECIMAL_PATTERN = '\\d+(\\.\\d{1,10})?'
 // history chronologically) is the one that counts.
 function heldQuantity(transactions: Transaction[], symbol: string): Big {
   return transactions
-    .filter((t) => t.symbol === symbol)
-    .reduce((held, t) => (t.side === 'buy' ? held.plus(t.quantity) : held.minus(t.quantity)), Big(0))
+    .filter((tx) => tx.symbol === symbol)
+    .reduce((held, tx) => (tx.side === 'buy' ? held.plus(tx.quantity) : held.minus(tx.quantity)), Big(0))
 }
 
 const EMPTY_FORM = {
@@ -87,87 +89,95 @@ export function TransactionForm({ transactions }: { transactions: Transaction[] 
 
   return (
     <form onSubmit={handleSubmit} className="transaction-form">
-      <label>
-        Symbol
-        <SymbolAutocomplete
-          value={form.symbol}
-          onType={(text) => setForm((prev) => ({ ...prev, symbol: text, provider_id: null }))}
-          onSelect={selectAsset}
-        />
-      </label>
-      <label>
-        Type
-        <select
-          value={form.asset_type}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, asset_type: e.target.value as AssetType, provider_id: null }))
-          }
-        >
-          <option value="stock">Stock</option>
-          <option value="crypto">Crypto</option>
-        </select>
-      </label>
-      <label>
-        Side
-        <select value={form.side} onChange={(e) => update('side', e.target.value as Side)}>
-          <option value="buy">Buy</option>
-          <option value="sell">Sell</option>
-        </select>
-      </label>
-      <label>
-        Executed at
-        <input
-          type="datetime-local"
-          required
-          value={form.executed_at}
-          onChange={(e) => update('executed_at', e.target.value)}
-        />
-      </label>
-      <label>
-        Quantity
-        <input
-          required
-          inputMode="decimal"
-          pattern={DECIMAL_PATTERN}
-          value={form.quantity}
-          onChange={(e) => update('quantity', e.target.value)}
-        />
-      </label>
-      <label>
-        Price (USD)
-        <input
-          required
-          inputMode="decimal"
-          pattern={DECIMAL_PATTERN}
-          value={price}
-          // Clearing the field hands it back to the auto-filled price.
-          onChange={(e) => update('price', e.target.value === '' ? null : e.target.value)}
-        />
-      </label>
-      <label>
-        Fee (USD)
-        <input
-          required
-          inputMode="decimal"
-          pattern={DECIMAL_PATTERN}
-          value={form.fee}
-          onChange={(e) => update('fee', e.target.value)}
-        />
-      </label>
-      <button type="submit" disabled={create.isPending || oversell}>
-        Add transaction
-      </button>
+      <div className="form-grid">
+        <label className="field field-symbol">
+          <span className="field-label">{t.form.symbol}</span>
+          <SymbolAutocomplete
+            value={form.symbol}
+            onType={(text) => setForm((prev) => ({ ...prev, symbol: text, provider_id: null }))}
+            onSelect={selectAsset}
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">{t.form.type}</span>
+          <select
+            value={form.asset_type}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, asset_type: e.target.value as AssetType, provider_id: null }))
+            }
+          >
+            <option value="stock">{t.transactions.assetTypes.stock}</option>
+            <option value="crypto">{t.transactions.assetTypes.crypto}</option>
+          </select>
+        </label>
+        <label className="field">
+          <span className="field-label">{t.form.side}</span>
+          <select value={form.side} onChange={(e) => update('side', e.target.value as Side)}>
+            <option value="buy">{t.transactions.sides.buy}</option>
+            <option value="sell">{t.transactions.sides.sell}</option>
+          </select>
+        </label>
+        <label className="field">
+          <span className="field-label">{t.form.executedAt}</span>
+          <input
+            type="datetime-local"
+            required
+            value={form.executed_at}
+            onChange={(e) => update('executed_at', e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">{t.form.quantity}</span>
+          <input
+            required
+            inputMode="decimal"
+            pattern={DECIMAL_PATTERN}
+            className="num"
+            value={form.quantity}
+            onChange={(e) => update('quantity', e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">{t.form.price}</span>
+          <input
+            required
+            inputMode="decimal"
+            pattern={DECIMAL_PATTERN}
+            className="num"
+            value={price}
+            // Clearing the field hands it back to the auto-filled price.
+            onChange={(e) => update('price', e.target.value === '' ? null : e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">{t.form.fee}</span>
+          <input
+            required
+            inputMode="decimal"
+            pattern={DECIMAL_PATTERN}
+            className="num"
+            value={form.fee}
+            onChange={(e) => update('fee', e.target.value)}
+          />
+        </label>
+      </div>
       <PriceHint priceOn={priceOn} usingAutoPrice={usingAutoPrice} />
       {oversell && (
-        <p role="alert" className="form-message">
-          You only hold {held.toString()} {symbol}.
+        <p role="alert" className="form-error">
+          {t.form.oversell(held.toString(), symbol)}
         </p>
       )}
       {create.error && (
-        <p role="alert" className="form-message">
+        <p role="alert" className="form-error">
           {create.error.message}
         </p>
       )}
+      <div className="form-actions">
+        <button type="submit" className="button button-primary" disabled={create.isPending || oversell}>
+          <Icon name="plus" size={18} />
+          {t.form.submit}
+        </button>
+      </div>
     </form>
   )
 }
@@ -180,25 +190,24 @@ function PriceHint({
   usingAutoPrice: boolean
 }) {
   if (priceOn.fetchStatus === 'fetching') {
-    return <p className="form-message hint">Looking up price…</p>
+    return <p className="hint">{t.form.lookingUp}</p>
   }
   if (priceOn.error) {
     // 404s (no data for that date) already say what to do; outages need the manual-entry nudge.
     const outage = !(priceOn.error instanceof ApiError) || priceOn.error.status >= 500
     return (
-      <p role="status" className="form-message hint warning">
-        Couldn't auto-fill the price: {priceOn.error.message}
-        {outage && ' Enter the price manually.'}
+      <p role="status" className="hint warning-text">
+        {t.form.autofillFailed(priceOn.error.message)}
+        {outage && t.form.enterManually}
       </p>
     )
   }
   if (!priceOn.data) return null
   const { price, price_date, kind, note, is_fallback } = priceOn.data
-  const source = kind === 'live' ? 'live price' : `${price_date} close`
+  const source = kind === 'live' ? t.form.livePrice : t.form.closeOn(price_date)
   return (
-    <p role="status" className={`form-message hint${is_fallback ? ' warning' : ''}`}>
-      {usingAutoPrice ? `Auto-filled ${price} USD (${source}).` : `Looked-up price: ${price} USD (${source}).`}{' '}
-      {note}
+    <p role="status" className={is_fallback ? 'hint warning-text' : 'hint'}>
+      {usingAutoPrice ? t.form.autoFilled(price, source) : t.form.lookedUp(price, source)} {note}
     </p>
   )
 }

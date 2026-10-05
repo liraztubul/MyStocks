@@ -2,6 +2,7 @@ import { useId, useState, type KeyboardEvent } from 'react'
 import type { AssetMatch } from '../api/assets'
 import { useAssetSearch } from '../hooks/useAssets'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { t } from '../strings'
 
 interface Props {
   value: string
@@ -47,7 +48,7 @@ export function SymbolAutocomplete({ value, onType, onSelect }: Props) {
         aria-controls={listId}
         aria-autocomplete="list"
         autoComplete="off"
-        placeholder="Search stocks & crypto"
+        placeholder={t.form.symbolPlaceholder}
         value={value}
         onChange={(e) => {
           onType(e.target.value)
@@ -70,19 +71,19 @@ export function SymbolAutocomplete({ value, onType, onSelect }: Props) {
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(match)}
             >
-              <strong>{match.symbol}</strong> <span className="muted">{match.name}</span>
+              <span className="symbol">{match.symbol}</span> <span className="muted option-name">{match.name}</span>
               <span className={`tag tag-${match.asset_type}`}>{match.asset_type}</span>
             </li>
           ))}
         </ul>
       )}
       {open && search.error && (
-        <p className="hint">Search unavailable ({search.error.message}). Type the symbol and pick its type.</p>
+        <p className="hint">{t.form.searchUnavailable(search.error.message)}</p>
       )}
       {open &&
         search.data?.unavailable.map((source) => (
           <p key={source.asset_type} className="hint">
-            {source.asset_type === 'stock' ? 'Stock' : 'Crypto'} search unavailable: {source.detail}
+            {t.form.sourceUnavailable(source.asset_type, source.detail)}
           </p>
         ))}
     </div>

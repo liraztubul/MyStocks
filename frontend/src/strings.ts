@@ -1,13 +1,19 @@
-// UI copy for the dashboard and navigation, kept in one place so a Hebrew table can be added
-// later by swapping this object.
+// All UI copy, kept in one place so a Hebrew table can be added later by swapping this object.
 export const t = {
   // Dates follow the UI language, not the browser's: mixing a Hebrew date into English copy is
   // what happens otherwise. Switch together with the strings when Hebrew is added.
   locale: 'en-US',
+  appName: 'MyStocks',
   nav: {
     dashboard: 'Dashboard',
     transactions: 'Transactions',
     label: 'Main',
+  },
+  theme: {
+    label: 'Theme',
+    light: 'Light theme',
+    dark: 'Dark theme',
+    system: 'Use system theme',
   },
   common: {
     loading: 'Loading…',
@@ -15,10 +21,26 @@ export const t = {
     noValue: '—',
     usd: 'USD',
     loadError: (what: string, message: string) => `Could not load ${what}: ${message}`,
+    serverUnreachable: (message: string) => `Could not reach the server: ${message}`,
+    gain: 'up',
+    loss: 'down',
+  },
+  auth: {
+    tagline: 'Track your stocks and crypto in one place.',
+    logIn: 'Log in',
+    createAccount: 'Create account',
+    register: 'Register',
+    email: 'Email',
+    password: 'Password',
+    confirmPassword: 'Confirm password',
+    passwordHint: 'At least 8 characters.',
+    passwordsMismatch: "Passwords don't match",
+    switchToRegister: 'Need an account? Register',
+    switchToLogin: 'Have an account? Log in',
   },
   summary: {
     heading: 'Summary',
-    marketValue: 'Market value',
+    marketValue: 'Portfolio value',
     costBasis: 'Cost basis',
     unrealized: 'Unrealized P/L',
     realized: 'Realized P/L',
@@ -46,6 +68,7 @@ export const t = {
   holdings: {
     heading: 'Holdings',
     empty: 'No open positions.',
+    allClosed: 'All positions are closed. Realized P/L is below.',
     symbol: 'Symbol',
     quantity: 'Quantity',
     averageCost: 'Avg cost',
@@ -69,6 +92,51 @@ export const t = {
     proceeds: 'Proceeds',
     realized: 'Realized P/L',
     footnote: 'Proceeds are net of the sell fee. Realized P/L = proceeds − average cost × quantity.',
+  },
+  empty: {
+    title: 'Your portfolio starts here',
+    body: 'Log your first buy and MyStocks will track its value, P/L and allocation for you.',
+    action: 'Add your first transaction',
+  },
+  transactions: {
+    addHeading: 'Add transaction',
+    listHeading: 'Transactions',
+    empty: 'No transactions yet.',
+    executed: 'Executed',
+    symbol: 'Symbol',
+    type: 'Type',
+    side: 'Side',
+    quantity: 'Quantity',
+    price: 'Price',
+    fee: 'Fee',
+    actions: 'Actions',
+    delete: 'Delete',
+    deleteLabel: (symbol: string, when: string) => `Delete ${symbol} transaction from ${when}`,
+    assetTypes: { stock: 'Stock', crypto: 'Crypto' },
+    sides: { buy: 'Buy', sell: 'Sell' },
+  },
+  form: {
+    symbol: 'Symbol',
+    symbolPlaceholder: 'Search stocks & crypto',
+    type: 'Type',
+    side: 'Side',
+    executedAt: 'Executed at',
+    quantity: 'Quantity',
+    price: 'Price (USD)',
+    fee: 'Fee (USD)',
+    submit: 'Add transaction',
+    oversell: (held: string, symbol: string) => `You only hold ${held} ${symbol}.`,
+    lookingUp: 'Looking up price…',
+    autofillFailed: (message: string) => `Couldn't auto-fill the price: ${message}`,
+    enterManually: ' Enter the price manually.',
+    livePrice: 'live price',
+    closeOn: (date: string) => `${date} close`,
+    autoFilled: (price: string, source: string) => `Auto-filled ${price} USD (${source}).`,
+    lookedUp: (price: string, source: string) => `Looked-up price: ${price} USD (${source}).`,
+    searchUnavailable: (message: string) =>
+      `Search unavailable (${message}). Type the symbol and pick its type.`,
+    sourceUnavailable: (assetType: 'stock' | 'crypto', detail: string) =>
+      `${assetType === 'stock' ? 'Stock' : 'Crypto'} search unavailable: ${detail}`,
   },
   disclaimer: [
     'Cost basis: average cost; buy fees add to cost, sell fees reduce proceeds. All amounts in USD.',

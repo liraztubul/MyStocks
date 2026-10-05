@@ -1,5 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
+import { Icon } from '../components/Icon'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { useLogin, useRegister } from '../hooks/useAuth'
+import { t } from '../strings'
 
 type Mode = 'login' | 'register'
 
@@ -11,6 +14,7 @@ export function LoginPage() {
   const loginMutation = useLogin()
   const registerMutation = useRegister()
   const mutation = mode === 'login' ? loginMutation : registerMutation
+  const hintId = useId()
 
   const passwordsMismatch =
     mode === 'register' && confirmPassword.length > 0 && password !== confirmPassword
@@ -29,56 +33,82 @@ export function LoginPage() {
   }
 
   return (
-    <main>
-      <h1>MyStocks</h1>
-      <h2>{mode === 'login' ? 'Log in' : 'Create account'}</h2>
-      <form onSubmit={handleSubmit} className="auth-form">
-        <label>
-          Email
-          <input
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            required
-            minLength={mode === 'register' ? 8 : undefined}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        {mode === 'register' && (
-          <label>
-            Confirm password
+    <div className="auth-page">
+      <div className="auth-theme">
+        <ThemeToggle />
+      </div>
+      <main className="auth-card card">
+        <div className="brand brand-large">
+          <span className="brand-mark" aria-hidden="true">
+            <Icon name="logo" size={24} />
+          </span>
+          {t.appName}
+        </div>
+        <p className="muted auth-tagline">{t.auth.tagline}</p>
+        <h1 className="auth-title">{mode === 'login' ? t.auth.logIn : t.auth.createAccount}</h1>
+        <form onSubmit={handleSubmit} className="stack">
+          <label className="field">
+            <span className="field-label">{t.auth.email}</span>
             <input
-              type="password"
-              autoComplete="new-password"
+              type="email"
+              autoComplete="email"
               required
-              minLength={8}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </label>
-        )}
-        {passwordsMismatch && <p role="alert">Passwords don't match</p>}
-        {mutation.error && <p role="alert">{mutation.error.message}</p>}
-        <button
-          type="submit"
-          disabled={mutation.isPending || (mode === 'register' && passwordsMismatch)}
-        >
-          {mode === 'login' ? 'Log in' : 'Register'}
+          <label className="field">
+            <span className="field-label">{t.auth.password}</span>
+            <input
+              type="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+              minLength={mode === 'register' ? 8 : undefined}
+              aria-describedby={mode === 'register' ? hintId : undefined}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {mode === 'register' && (
+              <span id={hintId} className="field-hint">
+                {t.auth.passwordHint}
+              </span>
+            )}
+          </label>
+          {mode === 'register' && (
+            <label className="field">
+              <span className="field-label">{t.auth.confirmPassword}</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </label>
+          )}
+          {passwordsMismatch && (
+            <p role="alert" className="form-error">
+              {t.auth.passwordsMismatch}
+            </p>
+          )}
+          {mutation.error && (
+            <p role="alert" className="form-error">
+              {mutation.error.message}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="button button-primary button-block"
+            disabled={mutation.isPending || (mode === 'register' && passwordsMismatch)}
+          >
+            {mode === 'login' ? t.auth.logIn : t.auth.register}
+          </button>
+        </form>
+        <button type="button" className="button button-ghost button-block" onClick={toggleMode}>
+          {mode === 'login' ? t.auth.switchToRegister : t.auth.switchToLogin}
         </button>
-      </form>
-      <button type="button" className="link-button" onClick={toggleMode}>
-        {mode === 'login' ? 'Need an account? Register' : 'Have an account? Log in'}
-      </button>
-    </main>
+      </main>
+    </div>
   )
 }

@@ -27,12 +27,6 @@ export function formatSignedPercent(value: string): string {
   return `${Big(value).gt(0) ? '+' : ''}${fixed}%`
 }
 
-export function gainClass(value: string | null): string | undefined {
-  if (value === null) return undefined
-  const amount = Big(value)
-  return amount.gt(0) ? 'gain' : amount.lt(0) ? 'loss' : undefined
-}
-
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(t.locale, { dateStyle: 'medium', timeStyle: 'short' })
 }
