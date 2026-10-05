@@ -148,19 +148,23 @@ main.wide {
   }
 }
 
-.transaction-table {
+.transaction-table,
+.data-table {
   width: 100%;
   border-collapse: collapse;
 }
 
 .transaction-table th,
-.transaction-table td {
+.transaction-table td,
+.data-table th,
+.data-table td {
   padding: 0.4rem 0.5rem;
   border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
   text-align: left;
 }
 
-.transaction-table .num {
+.transaction-table .num,
+.data-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -173,4 +177,31 @@ main.wide {
   color: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table .stale {
+  display: block;
+  font-size: 0.75rem;
+}
+
+.gain {
+  color: #15803d;
+}
+
+.loss {
+  color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gain {
+    color: #4ade80;
+  }
+
+  .loss {
+    color: #f87171;
+  }
 }

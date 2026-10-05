@@ -1,20 +1,14 @@
 from datetime import date, datetime
-from decimal import ROUND_HALF_EVEN, Decimal
-from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict
 
 from app.domain.enums import AssetType
 from app.market_data.provider import PriceKind
-from app.schemas.decimal import DecimalString
+from app.schemas.decimal import Money
 
-TEN_PLACES = Decimal("1e-10")
-
-# Providers can quote more decimals than Numeric(28, 10) stores (tiny-cap coins); round so an
-# auto-filled price is always one the transaction endpoint will accept.
-MarketPrice = Annotated[
-    DecimalString, AfterValidator(lambda d: d.quantize(TEN_PLACES, rounding=ROUND_HALF_EVEN))
-]
+# Providers can quote more decimals than Numeric(28, 10) stores (tiny-cap coins); rounding to
+# 10 places means an auto-filled price is always one the transaction endpoint will accept.
+MarketPrice = Money
 
 
 class _FromAttributes(BaseModel):
@@ -46,6 +40,7 @@ class QuoteRead(_FromAttributes):
     price: MarketPrice
     currency: str
     as_of: datetime
+    is_stale: bool
 
 
 class PriceOnDateRead(_FromAttributes):

@@ -23,6 +23,9 @@ class Quote:
     price: Decimal
     currency: str
     as_of: datetime
+    # True when served from the last-known-good copy because the provider failed; as_of is
+    # still the original fetch's timestamp.
+    is_stale: bool = False
 
 
 class PriceKind(str, Enum):

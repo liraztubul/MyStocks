@@ -1,8 +1,8 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Protocol
+from typing import Any, Protocol, TypeVar
 
 from app.domain.enums import Side
 
@@ -28,17 +28,31 @@ class Oversell:
     held_before: Decimal
 
 
+T = TypeVar("T", bound=Trade)
+
+
+def chronological(
+    trades: Iterable[T], tiebreak: Callable[[T], tuple[Any, ...]] = lambda _: ()
+) -> list[T]:
+    """Trades in the order the ledger replays them: by executed_at, buys before sells.
+
+    Buys go first at the same timestamp because trades logged with only a date all land on
+    midnight, and a same-day buy-then-sell must not count as an oversell. Quantity, then any
+    caller-supplied fields, break remaining ties so a replay never depends on load order.
+    """
+    return sorted(
+        trades, key=lambda t: (t.executed_at, t.side is Side.SELL, t.quantity, *tiebreak(t))
+    )
+
+
 def find_oversell(trades: Iterable[Trade]) -> Oversell | None:
     """First sell (in executed_at order) that exceeds what was held at that moment, if any.
 
     Checking the running balance rather than just the final total also catches a sell
     backdated to before the buys that would cover it.
     """
-    # Buys sort before sells at the same timestamp: trades logged with only a date all land on
-    # midnight, and a same-day buy-then-sell must not be flagged.
-    ordered = sorted(trades, key=lambda t: (t.executed_at, t.side is Side.SELL))
     held = Decimal(0)
-    for trade in ordered:
+    for trade in chronological(trades):
         if trade.side is Side.SELL and trade.quantity > held:
             return Oversell(sell=trade, held_before=held)
         held += signed_quantity(trade)

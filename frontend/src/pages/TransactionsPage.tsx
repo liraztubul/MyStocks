@@ -1,4 +1,5 @@
 import type { User } from '../api/auth'
+import { HoldingsTable } from '../components/HoldingsTable'
 import { TransactionForm } from '../components/TransactionForm'
 import { TransactionTable } from '../components/TransactionTable'
 import { useTransactions } from '../hooks/useTransactions'
@@ -14,6 +15,8 @@ export function TransactionsPage({ user }: { user: User }) {
           Logged in as <strong data-testid="user-email">{user.email}</strong>
         </span>
       </header>
+      <h2>Holdings</h2>
+      <HoldingsTable />
       <h2>Add transaction</h2>
       <TransactionForm transactions={transactions ?? []} />
       <h2>Transactions</h2>

@@ -76,6 +76,19 @@ docker compose up --build
 - Postgres: `localhost:5432`, data persisted in the `postgres_data` volume
 - The backend runs `alembic upgrade head` on startup.
 
+## Assumptions
+
+How P/L is calculated (see `backend/app/domain/pnl.py`):
+
+- **Average cost basis.** The average moves only on buys: `new_avg = (held_qty * avg + buy_qty * price + buy_fee) / (held_qty + buy_qty)`. Selling never changes it. When a position is sold down to zero, its average resets, so a later re-buy starts fresh. The calculation sits behind a strategy interface, so FIFO can be added later.
+- **Fees.** A buy's fee is added to its cost basis. A sell's fee is subtracted from its proceeds.
+- **Realized P/L** per sell = `(sell_price - average_cost) * quantity - sell_fee`.
+- **Unrealized P/L** = `(current_price - average_cost) * held_quantity`. The % is relative to the cost basis of what's still held, fees included.
+- **Replay order.** Each symbol's trades are replayed in `executed_at` order, with buys before sells at the same timestamp. This is the same rule the oversell check uses.
+- **USD only.** All amounts are USD and there is no currency conversion.
+- **Precision.** The engine never rounds: it works in a 60-significant-digit Decimal context. The API rounds amounts to 10 decimal places and percentages to 4 (half-even), and the UI rounds again for display.
+- **Prices.** Live prices are cached for 60 seconds. If a provider is down or rate-limited, the last known price is shown, marked stale with its original timestamp. A holding that has never been priced shows no market value rather than failing the whole portfolio.
+
 ## Status
 
-M4 (market data) — auth, a transaction ledger with oversell validation, and symbol search + price autofill via Finnhub/CoinGecko. See [ROADMAP.md](ROADMAP.md) for milestones and known limitations.
+M3 (P/L engine) — auth, a transaction ledger with oversell validation, symbol search + price autofill via Finnhub/CoinGecko, and average-cost holdings with realized/unrealized P/L. See [ROADMAP.md](ROADMAP.md) for milestones and known limitations.

@@ -12,6 +12,8 @@ Living reference for whoever (Claude Code included) picks up work on this repo. 
 - Money/quantity: `Numeric(28,10)` in Postgres, `Decimal` end to end in Python, JSON in/out as strings (never floats) — see `backend/app/schemas/decimal.py`.
 - Market data (M4): `MarketDataProvider` protocol (`backend/app/market_data/provider.py`) with Finnhub (US stocks: `/search`, `/quote`) and CoinGecko (crypto: `/search`, `/simple/price`, `/coins/{id}/history`) adapters. Each is wrapped in a two-tier in-memory cache (`cache.py`): 60s TTL for live quotes and live price-on results, no expiry (LRU-bounded) for final closes, 1h for search. Errors are never cached. Provider failures map to JSON `{detail, code}`: 404 when a symbol or price is unavailable, 503 when the provider is down or rate-limited. Search degrades per source. Prices are parsed with `parse_float=Decimal` and rounded half-even to 10 places for the API.
 - **Free-tier finding (2026-09-30):** Finnhub free has **no historical prices** (`/stock/candle` is Premium; the "~1 year" belief was wrong). So stock price-on-date only resolves when the latest quote covers the date (today, or a weekend/holiday falling back to the last close; see `market_data/dates.py`). Older dates need manual entry. CoinGecko keyless history is limited to the past 365 days.
+- P/L engine (M3): `backend/app/domain/pnl.py` + `cost_basis.py`. Pure functions over trades and a `price_of` lookup. Average cost sits behind a `CostBasisStrategy` protocol (FIFO later = a new class). The state is `(quantity, total_cost)`, with average = total / quantity. A buy is exact addition, a partial sell removes cost proportionally (the average is unchanged), and a sell to zero removes exactly the total, so the average resets. Buy fees are added to cost basis; sell fees are subtracted from proceeds. Replay uses `holdings.chronological()`, the same ordering as the oversell check, plus a price/fee tiebreak so results never depend on load order. Arithmetic runs in a 60-digit Decimal context (`domain/precision.py`), because the default 28 digits silently round `Numeric(28,10)` products. Rounding happens only at the API (`Money` 10dp, `Percent` 4dp, half-even). An oversold ledger (only possible after deleting a buy) raises `OversoldLedgerError`, which becomes a 409. Tests: example cases, a hand-worked example, and hypothesis properties (quantity = buys − sells; realized + unrealized = cash in − cash out + value; input-order independence; non-negative average; sells don't move the average).
+- Stale prices (M3): `CachedProvider` keeps a last-known-good copy of every live quote (in memory, LRU-bounded). If a fetch fails because the provider is unavailable or rate-limited, it returns that copy with `is_stale=True` and the original `as_of`, and parks it for one 60s TTL so an outage costs one timed-out call per symbol per minute. `SymbolNotFound` is never masked. With no last-known-good copy, the holding is returned with null price fields and a `price_unavailable_reason`. Holdings fetch quotes in parallel (up to 8 threads).
 - Oversell validation: replays a symbol's trade history in `executed_at` order (buys before sells at the same timestamp), not just a final-totals comparison — catches backdated sells. See `backend/app/domain/holdings.py`. Writes are serialized per-user via `SELECT ... FOR UPDATE` on the user row.
 
 ## Repo structure
@@ -19,7 +21,7 @@ Living reference for whoever (Claude Code included) picks up work on this repo. 
 ```
 MyStocks/
 ├── backend/app/{api,core,db,domain,market_data,schemas}/
-├── backend/tests/{unit,integration}/
+├── backend/tests/{unit,integration,live}/   (live = real-network, excluded by default)
 ├── frontend/src/{api,components,pages,hooks}/
 ├── docker-compose.yml, .env.example
 ├── docs/architecture-plan.md   (this file)
@@ -33,9 +35,9 @@ MyStocks/
 | M0 | Skeleton (FastAPI + React scaffold, docker-compose, CI) | Done, committed |
 | M1 | Auth (register/login/JWT cookie) | Done, verified live |
 | M2 | Transactions CRUD + oversell validation | Done, verified live |
-| M3 | P/L engine (avg cost basis, unrealized/realized P/L) | Next |
+| M3 | P/L engine (avg cost basis, unrealized/realized P/L) | Done, verified live |
 | M4 | Market data provider (Finnhub + CoinGecko, TTL cache) | Done (pulled ahead of M3) |
-| M5 | Portfolio dashboard | Not started |
+| M5 | Portfolio dashboard | Next |
 | M6 | Price chart | Not started |
 | M7 | Polish + deploy | Not started |
 

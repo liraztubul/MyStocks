@@ -6,7 +6,8 @@
 | M1 | Auth: register / login / me, argon2 + JWT cookie | Done |
 | M2 | Transactions ledger: CRUD, oversell validation, transactions page | Done |
 | M4 | Market data: Finnhub + CoinGecko search, quotes, price-on-date autofill (pulled ahead of M3) | Done |
-| M3 | Average-cost P/L engine on top of `domain/holdings.py` | Next |
+| M3 | P/L engine (average cost) + holdings/summary/realized endpoints, stale-price fallback | Done |
+| M5 | Portfolio dashboard (totals header, allocation chart, day change) | Next |
 
 ## Known MVP limitations
 
@@ -66,6 +67,23 @@ CoinGecko responses on 2026-09-30.
   covers US stocks.
 - **Caches are in-memory and per-process.** They're lost on restart and not shared if the
   backend is ever scaled out.
+- **Last-known-good quotes are in memory only.** After a backend restart, a symbol has no
+  fallback until it has been fetched successfully once.
 - **Rate limits.** The free Finnhub tier allows 60 calls/min, and keyless CoinGecko allows
   much less. Search is debounced (300ms) and cached for 1 hour. A rate-limited provider
   degrades to a message, never to stale data.
+
+### P/L (M3)
+
+- **Average cost only.** FIFO and specific-lot identification aren't built yet. The
+  `CostBasisStrategy` interface in `domain/cost_basis.py` is where they'd plug in.
+- **Positions are grouped by symbol alone, like the ledger.** A stock and a coin sharing a
+  ticker would be merged into one position. The latest trade's `asset_type` decides which
+  provider prices it.
+- **An oversold history returns 409.** This only happens after deleting a buy (see M2), and
+  then every portfolio endpoint refuses rather than showing wrong numbers. The message names
+  the symbol to fix.
+- **Partial portfolio pricing.** Summary totals for market value and unrealized P/L cover
+  priced holdings only. `unpriced_symbols` lists the rest, and cost basis and realized P/L
+  always cover everything.
+- **No tax-lot, wash-sale or holding-period handling.**
