@@ -1,5 +1,6 @@
 import type { Transaction } from '../api/transactions'
 import { useDeleteTransaction } from '../hooks/useTransactions'
+import { formatDateTime } from './format'
 
 export function TransactionTable({ transactions }: { transactions: Transaction[] }) {
   const remove = useDeleteTransaction()
@@ -25,7 +26,7 @@ export function TransactionTable({ transactions }: { transactions: Transaction[]
         <tbody>
           {transactions.map((t) => (
             <tr key={t.id}>
-              <td>{new Date(t.executed_at).toLocaleString()}</td>
+              <td>{formatDateTime(t.executed_at)}</td>
               <td>{t.symbol}</td>
               <td>{t.asset_type}</td>
               <td>{t.side}</td>

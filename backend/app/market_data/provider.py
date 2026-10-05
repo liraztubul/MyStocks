@@ -16,6 +16,13 @@ class AssetMatch:
     provider_id: str
 
 
+class ReferenceKind(str, Enum):
+    # Stocks: the last session's official close (Finnhub `pc`).
+    PREVIOUS_CLOSE = "previous_close"
+    # Crypto: the price 24h before as_of, derived from CoinGecko's rolling 24h change %.
+    ROLLING_24H = "rolling_24h"
+
+
 @dataclass(frozen=True)
 class Quote:
     symbol: str
@@ -26,6 +33,11 @@ class Quote:
     # True when served from the last-known-good copy because the provider failed; as_of is
     # still the original fetch's timestamp.
     is_stale: bool = False
+    # The price daily change is measured from, and when it applied. All three are None when
+    # the provider didn't supply a usable one, which makes daily change null, not zero.
+    reference_price: Decimal | None = None
+    reference_at: datetime | None = None
+    reference_kind: ReferenceKind | None = None
 
 
 class PriceKind(str, Enum):

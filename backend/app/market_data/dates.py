@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
+
+from app.domain.precision import exact
 
 US_MARKET_TZ = ZoneInfo("America/New_York")
 US_MARKET_CLOSE = time(16, 0)
@@ -8,6 +11,7 @@ US_MARKET_CLOSE = time(16, 0)
 # this relative to the requested date is stale (halted/delisted), not a holiday fallback.
 MAX_STOCK_FALLBACK_DAYS = 5
 COINGECKO_FREE_HISTORY_DAYS = 365
+ROLLING_CHANGE_WINDOW = timedelta(hours=24)
 
 
 @dataclass(frozen=True)
@@ -39,3 +43,24 @@ def crypto_close_snapshot_date(requested: date) -> date:
 
 def within_free_crypto_history(snapshot: date, today: date) -> bool:
     return (today - snapshot).days <= COINGECKO_FREE_HISTORY_DAYS
+
+
+def us_session_start(last_trade: datetime) -> datetime:
+    """Midnight New York time on the trading day of `last_trade`, DST-aware.
+
+    A Finnhub quote's change (c - pc) covers that one session, so this marks where "today"
+    starts for it: trades at or after this instant are part of the same session's change.
+    """
+    session_day = last_trade.astimezone(US_MARKET_TZ).date()
+    return datetime.combine(session_day, time(0), tzinfo=US_MARKET_TZ)
+
+
+def price_before_change(price: Decimal, change_pct: Decimal) -> Decimal | None:
+    """The earlier price that a `change_pct`% move turned into `price`, or None if undefined.
+
+    CoinGecko only reports the rolling 24h change as a percentage, so the base price has to be
+    derived. A change of -100% or less has no meaningful base.
+    """
+    with exact():
+        factor = 1 + change_pct / 100
+        return price / factor if factor > 0 else None

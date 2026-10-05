@@ -3,8 +3,36 @@
   color-scheme: light dark;
 }
 
+/* Chart surfaces the allocation palette was validated against (light #ffffff, dark #121212). */
+:root {
+  --surface: #ffffff;
+  --surface-raised: #f6f6f4;
+  --border: rgb(0 0 0 / 0.12);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-other: #8f8f8a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #121212;
+    --surface-raised: #1c1c1b;
+    --border: rgb(255 255 255 / 0.14);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-other: #77776f;
+  }
+}
+
 body {
   margin: 0;
+  background: var(--surface);
 }
 
 main {
@@ -89,11 +117,12 @@ main.wide {
   position: absolute;
   z-index: 10;
   top: 100%;
-  left: 0;
+  inset-inline-start: 0;
   width: max(100%, 22rem);
   max-height: 18rem;
   overflow-y: auto;
-  margin: 0.25rem 0 0;
+  margin-block: 0.25rem 0;
+  margin-inline: 0;
   padding: 0.25rem 0;
   list-style: none;
   background: Canvas;
@@ -160,17 +189,17 @@ main.wide {
 .data-table td {
   padding: 0.4rem 0.5rem;
   border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  text-align: left;
+  text-align: start;
 }
 
 .transaction-table .num,
 .data-table .num {
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 
 .link-button {
-  margin-top: 1rem;
+  margin-block-start: 1rem;
   padding: 0;
   border: none;
   background: none;
@@ -181,11 +210,6 @@ main.wide {
 
 .table-scroll {
   overflow-x: auto;
-}
-
-.data-table .stale {
-  display: block;
-  font-size: 0.75rem;
 }
 
 .gain {
@@ -204,4 +228,162 @@ main.wide {
   .loss {
     color: #f87171;
   }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tabs a {
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tabs a[aria-current='page'] {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font-weight: 600;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+.card {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.card-label {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.card-value {
+  font-size: 1.4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-unit {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.card-detail {
+  font-size: 0.8rem;
+}
+
+.notice {
+  padding: 0.6rem 0.9rem;
+  border-inline-start: 4px solid #b45309;
+  border-radius: 4px;
+  background: color-mix(in srgb, #b45309 10%, transparent);
+  font-size: 0.875rem;
+}
+
+.donut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 2.5rem;
+  align-items: center;
+}
+
+.donut-side {
+  flex: 1 1 18rem;
+  max-width: 26rem;
+}
+
+.donut-svg {
+  display: block;
+  width: 100%;
+  max-width: 13rem;
+  flex: 0 0 13rem;
+}
+
+.donut-svg circle {
+  transition:
+    stroke-width 120ms,
+    opacity 120ms;
+}
+
+.donut-center-label {
+  font-size: 6px;
+  fill: currentColor;
+  opacity: 0.75;
+}
+
+.donut-center-value {
+  font-size: 8px;
+  font-weight: 600;
+  fill: currentColor;
+}
+
+.legend {
+  list-style: none;
+  margin-block: 0;
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+.legend li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.2rem 0.3rem;
+  border-radius: 4px;
+}
+
+.legend li.active,
+.legend li:focus-visible {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+}
+
+.legend-pct,
+.legend-value {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub {
+  display: block;
+  font-size: 0.72rem;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.disclaimer {
+  margin-block-start: 2.5rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--border);
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.disclaimer p {
+  margin-block: 0.2rem;
 }

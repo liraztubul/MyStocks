@@ -1,4 +1,5 @@
 import Big from 'big.js'
+import { t } from '../strings'
 
 function group(fixed: string): string {
   const [whole, fraction] = fixed.split('.')
@@ -30,4 +31,23 @@ export function gainClass(value: string | null): string | undefined {
   if (value === null) return undefined
   const amount = Big(value)
   return amount.gt(0) ? 'gain' : amount.lt(0) ? 'loss' : undefined
+}
+
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(t.locale, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+export function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(t.locale, { dateStyle: 'medium' })
+}
+
+// A stock's reference_at is 00:00 New York on its session; render that date in New York so a
+// viewer west or east of it doesn't see the neighbouring day.
+export function formatSessionDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(t.locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'America/New_York',
+  })
 }

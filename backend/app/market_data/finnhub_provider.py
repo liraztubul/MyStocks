@@ -6,7 +6,7 @@ from typing import Any
 import httpx2
 
 from app.domain.enums import AssetType
-from app.market_data.dates import US_MARKET_TZ, resolve_stock_price_date
+from app.market_data.dates import US_MARKET_TZ, resolve_stock_price_date, us_session_start
 from app.market_data.http import get_json
 from app.market_data.provider import (
     AssetMatch,
@@ -15,6 +15,7 @@ from app.market_data.provider import (
     PriceUnavailableError,
     ProviderUnavailableError,
     Quote,
+    ReferenceKind,
     SymbolNotFoundError,
 )
 
@@ -85,12 +86,20 @@ class FinnhubProvider:
         # Finnhub answers unknown symbols with 200 and all-zero fields rather than a 404.
         if not price or not timestamp:
             raise SymbolNotFoundError(f"No US stock quote found for {symbol}.")
+        as_of = datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+        previous_close = body.get("pc")
+        # A missing or zero previous close (unknown symbol, first trading day) means there's no
+        # base to measure from; a 0 base would turn the whole price into a bogus "change".
+        has_reference = bool(previous_close) and Decimal(previous_close) > 0
         return Quote(
             symbol=symbol,
             asset_type=AssetType.STOCK,
             price=Decimal(price),
             currency="USD",
-            as_of=datetime.fromtimestamp(int(timestamp), tz=timezone.utc),
+            as_of=as_of,
+            reference_price=Decimal(previous_close) if has_reference else None,
+            reference_at=us_session_start(as_of) if has_reference else None,
+            reference_kind=ReferenceKind.PREVIOUS_CLOSE if has_reference else None,
         )
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:

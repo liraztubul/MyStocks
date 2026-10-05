@@ -1,9 +1,12 @@
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 
 from app.market_data.dates import (
     US_MARKET_TZ,
     crypto_close_snapshot_date,
+    price_before_change,
     resolve_stock_price_date,
+    us_session_start,
     within_free_crypto_history,
 )
 
@@ -85,3 +88,39 @@ def test_crypto_free_history_window_is_365_days() -> None:
     today = date(2026, 9, 30)
     assert within_free_crypto_history(today - timedelta(days=365), today)
     assert not within_free_crypto_history(today - timedelta(days=366), today)
+
+
+def test_session_start_is_new_york_midnight_across_the_spring_dst_change() -> None:
+    # US DST began 2026-03-08. Midnight New York is 05:00 UTC before it and 04:00 UTC after.
+    friday_before = us_session_start(datetime(2026, 3, 6, 21, 0, tzinfo=timezone.utc))
+    monday_after = us_session_start(datetime(2026, 3, 9, 20, 0, tzinfo=timezone.utc))
+    assert friday_before == datetime(2026, 3, 6, 5, 0, tzinfo=timezone.utc)
+    assert monday_after == datetime(2026, 3, 9, 4, 0, tzinfo=timezone.utc)
+    assert (friday_before.utcoffset(), monday_after.utcoffset()) == (
+        timedelta(hours=-5),
+        timedelta(hours=-4),
+    )
+
+
+def test_session_start_across_the_autumn_dst_change() -> None:
+    # US DST ended 2026-11-01: Friday 10-30 is EDT (04:00 UTC), Monday 11-02 is EST (05:00 UTC).
+    assert us_session_start(datetime(2026, 10, 30, 20, 0, tzinfo=timezone.utc)) == datetime(
+        2026, 10, 30, 4, 0, tzinfo=timezone.utc
+    )
+    assert us_session_start(datetime(2026, 11, 2, 21, 0, tzinfo=timezone.utc)) == datetime(
+        2026, 11, 2, 5, 0, tzinfo=timezone.utc
+    )
+
+
+def test_late_evening_utc_trade_belongs_to_that_new_york_day() -> None:
+    # 00:30 UTC Tuesday is still 20:30 Monday in New York.
+    assert us_session_start(datetime(2026, 10, 6, 0, 30, tzinfo=timezone.utc)).date() == date(
+        2026, 10, 5
+    )
+
+
+def test_price_before_change() -> None:
+    assert price_before_change(Decimal("110"), Decimal("10")) == Decimal("100")
+    assert price_before_change(Decimal("90"), Decimal("-10")) == Decimal("100")
+    assert price_before_change(Decimal("5"), Decimal("-100")) is None
+    assert price_before_change(Decimal("5"), Decimal("-150")) is None

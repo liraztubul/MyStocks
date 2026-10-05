@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from app.api.assets import MarketDataDep
 from app.core.security import CurrentUser
 from app.db.models import Transaction
 from app.db.session import DbSession
+from app.domain.daily_change import DailyChange, daily_change, total_daily_change
 from app.domain.enums import AssetType
 from app.domain.pnl import (
     OversoldLedgerError,
@@ -21,10 +23,11 @@ from app.domain.pnl import (
     total_realized,
     value_portfolio,
 )
-from app.market_data.provider import MarketDataError, Quote
+from app.market_data.provider import MarketDataError, Quote, ReferenceKind
 from app.market_data.service import MarketData
 from app.schemas.portfolio import (
     AllocationRead,
+    DayChangeBasis,
     HoldingRead,
     PortfolioSummaryRead,
     RealizedPlRead,
@@ -34,6 +37,10 @@ from app.schemas.portfolio import (
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 CURRENCY = "USD"
+DAY_CHANGE_BASIS: dict[ReferenceKind, DayChangeBasis] = {
+    ReferenceKind.PREVIOUS_CLOSE: "since_previous_close",
+    ReferenceKind.ROLLING_24H: "rolling_24h",
+}
 MAX_QUOTE_WORKERS = 8
 
 
@@ -90,6 +97,14 @@ class ValuedPortfolio:
     portfolio: Portfolio[Transaction]
     asset_types: dict[str, AssetType]
     prices: dict[str, PriceResult]
+    # Open holdings only; None where the quote had no usable reference price.
+    day_changes: dict[str, DailyChange | None]
+
+    def day_change_basis(self, symbol: str) -> DayChangeBasis | None:
+        quote = self.prices[symbol].quote
+        if self.day_changes.get(symbol) is None or quote is None or quote.reference_kind is None:
+            return None
+        return DAY_CHANGE_BASIS[quote.reference_kind]
 
 
 def _load_valued_portfolio(
@@ -104,7 +119,19 @@ def _load_valued_portfolio(
         quote = prices[symbol].quote
         return quote.price if quote else None
 
-    return ValuedPortfolio(value_portfolio(positions, price_of), asset_types, prices)
+    by_symbol: dict[str, list[Transaction]] = defaultdict(list)
+    for trade in trades:
+        by_symbol[trade.symbol].append(trade)
+    day_changes = {
+        symbol: _day_change(by_symbol[symbol], prices[symbol].quote) for symbol in open_symbols
+    }
+    return ValuedPortfolio(value_portfolio(positions, price_of), asset_types, prices, day_changes)
+
+
+def _day_change(trades: list[Transaction], quote: Quote | None) -> DailyChange | None:
+    if quote is None:
+        return None
+    return daily_change(trades, quote.price, quote.reference_price, quote.reference_at)
 
 
 @router.get("/holdings", response_model=list[HoldingRead])
@@ -114,6 +141,8 @@ def get_holdings(user: CurrentUser, db: DbSession, market_data: MarketDataDep) -
     for holding in valued.portfolio.holdings:
         position, valuation = holding.position, holding.valuation
         price = valued.prices[position.symbol]
+        change = valued.day_changes.get(position.symbol)
+        basis = valued.day_change_basis(position.symbol)
         rows.append(
             HoldingRead(
                 symbol=position.symbol,
@@ -129,6 +158,11 @@ def get_holdings(user: CurrentUser, db: DbSession, market_data: MarketDataDep) -
                 price_as_of=price.quote.as_of if price.quote else None,
                 price_is_stale=bool(price.quote and price.quote.is_stale),
                 price_unavailable_reason=price.error,
+                day_change=change.amount if change else None,
+                day_change_pct=change.pct if change else None,
+                day_change_basis=basis,
+                day_change_reference_price=price.quote.reference_price if basis else None,
+                day_change_reference_at=price.quote.reference_at if basis else None,
             )
         )
     return rows
@@ -140,6 +174,8 @@ def get_summary(
 ) -> PortfolioSummaryRead:
     valued = _load_valued_portfolio(db, user.id, market_data)
     portfolio = valued.portfolio
+    changes = {s: c for s, c in valued.day_changes.items() if c is not None}
+    total_change = total_daily_change(changes.values())
     return PortfolioSummaryRead(
         currency=CURRENCY,
         total_cost_basis=portfolio.total_cost_basis,
@@ -158,6 +194,12 @@ def get_summary(
         ],
         unpriced_symbols=list(portfolio.unpriced_symbols),
         has_stale_prices=any(p.quote and p.quote.is_stale for p in valued.prices.values()),
+        total_day_change=total_change.amount if total_change else None,
+        total_day_change_pct=total_change.pct if total_change else None,
+        day_change_bases=sorted(
+            {b for s in changes if (b := valued.day_change_basis(s)) is not None}
+        ),
+        day_change_unavailable_symbols=sorted(set(valued.day_changes) - set(changes)),
     )
 
 

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -14,11 +14,14 @@ from app.market_data.provider import (
     PriceOnDate,
     ProviderUnavailableError,
     Quote,
+    ReferenceKind,
 )
 from app.market_data.service import MarketData, get_market_data
 
 PASSWORD = "correct-horse-battery"
 FETCHED_AT = datetime(2026, 10, 2, 20, 0, tzinfo=timezone.utc)
+# 00:00 New York (EDT) on the quote's session, as the Finnhub adapter computes it.
+SESSION_START = datetime(2026, 10, 2, 4, 0, tzinfo=timezone.utc)
 
 
 class Clock:
@@ -35,6 +38,7 @@ class QuoteSource:
     def __init__(self, asset_type: AssetType) -> None:
         self.asset_type = asset_type
         self.prices: dict[str, Decimal] = {}
+        self.references: dict[str, tuple[Decimal, datetime, ReferenceKind]] = {}
         self.error: MarketDataError | None = None
 
     def search(self, query: str) -> list[AssetMatch]:
@@ -43,7 +47,17 @@ class QuoteSource:
     def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
         if self.error:
             raise self.error
-        return Quote(symbol, self.asset_type, self.prices[symbol], "USD", FETCHED_AT)
+        reference = self.references.get(symbol)
+        return Quote(
+            symbol,
+            self.asset_type,
+            self.prices[symbol],
+            "USD",
+            FETCHED_AT,
+            reference_price=reference[0] if reference else None,
+            reference_at=reference[1] if reference else None,
+            reference_kind=reference[2] if reference else None,
+        )
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:
         raise NotImplementedError
@@ -92,6 +106,7 @@ def trade(
     day: int = 1,
     symbol: str = "AAPL",
     asset_type: str = "stock",
+    at: str | None = None,
 ) -> dict[str, Any]:
     response = client.post(
         "/api/transactions",
@@ -102,7 +117,7 @@ def trade(
             "quantity": qty,
             "price": price,
             "fee": fee,
-            "executed_at": f"2026-09-{day:02d}T15:00:00Z",
+            "executed_at": at or f"2026-09-{day:02d}T15:00:00Z",
         },
     )
     assert response.status_code == 201, response.text
@@ -136,6 +151,12 @@ def test_holdings_for_the_worked_example(api: TestClient, stocks: QuoteSource) -
             "price_as_of": "2026-10-02T20:00:00Z",
             "price_is_stale": False,
             "price_unavailable_reason": None,
+            # No reference price from the provider: day change degrades to null, not 0.
+            "day_change": None,
+            "day_change_pct": None,
+            "day_change_basis": None,
+            "day_change_reference_price": None,
+            "day_change_reference_at": None,
         }
     ]
 
@@ -266,3 +287,97 @@ def test_oversold_history_after_deleting_a_buy_is_a_clear_409(
 def test_portfolio_requires_auth(client: TestClient) -> None:
     for path in ("holdings", "summary", "realized-pl"):
         assert client.get(f"/api/portfolio/{path}").status_code == 401
+
+
+# --- daily change ---
+
+
+def previous_close(source: QuoteSource, symbol: str, price: str, close: str) -> None:
+    source.prices[symbol] = Decimal(price)
+    source.references[symbol] = (Decimal(close), SESSION_START, ReferenceKind.PREVIOUS_CLOSE)
+
+
+def test_day_change_since_previous_close(api: TestClient, stocks: QuoteSource) -> None:
+    worked_example(api)
+    previous_close(stocks, "AAPL", price="120", close="115")
+
+    [row] = api.get("/api/portfolio/holdings").json()
+    # 9 shares held through the session: 9 * (120 - 115) = 45 on a base of 9 * 115 = 1035.
+    assert (row["day_change"], row["day_change_pct"]) == ("45", "4.3478")
+    assert row["day_change_basis"] == "since_previous_close"
+    assert row["day_change_reference_price"] == "115"
+    assert row["day_change_reference_at"] == "2026-10-02T04:00:00Z"
+
+
+def test_position_opened_today_uses_buy_price(api: TestClient, stocks: QuoteSource) -> None:
+    trade(api, "buy", "2", "118", at="2026-10-02T14:30:00Z")
+    previous_close(stocks, "AAPL", price="120", close="100")
+
+    [row] = api.get("/api/portfolio/holdings").json()
+    # Not 2 * (120 - 100) = 40: the shares were bought today at 118.
+    assert (row["day_change"], row["day_change_pct"]) == ("4", "1.6949")
+
+
+def test_summary_total_day_change_labels_mixed_bases(
+    api: TestClient, stocks: QuoteSource, crypto: QuoteSource
+) -> None:
+    worked_example(api)
+    trade(api, "buy", "0.5", "60000", symbol="BTC", asset_type="crypto")
+    previous_close(stocks, "AAPL", price="120", close="115")
+    crypto.prices["BTC"] = Decimal("64000")
+    crypto.references["BTC"] = (
+        Decimal("62000"),
+        FETCHED_AT - timedelta(hours=24),
+        ReferenceKind.ROLLING_24H,
+    )
+
+    body = api.get("/api/portfolio/summary").json()
+    # AAPL +45 on 1035; BTC 0.5 * (64000 - 62000) = +1000 on 31000. Total 1045 / 32035.
+    assert body["total_day_change"] == "1045"
+    assert body["total_day_change_pct"] == "3.2621"
+    assert body["day_change_bases"] == ["rolling_24h", "since_previous_close"]
+    assert body["day_change_unavailable_symbols"] == []
+
+
+def test_holding_without_reference_is_listed_and_left_out_of_total(
+    api: TestClient, stocks: QuoteSource, crypto: QuoteSource
+) -> None:
+    worked_example(api)
+    trade(api, "buy", "2", "3000", symbol="ETH", asset_type="crypto")
+    previous_close(stocks, "AAPL", price="120", close="115")
+    crypto.prices["ETH"] = Decimal("3500")
+
+    body = api.get("/api/portfolio/summary").json()
+    assert body["total_day_change"] == "45"
+    assert body["day_change_bases"] == ["since_previous_close"]
+    assert body["day_change_unavailable_symbols"] == ["ETH"]
+
+
+def test_unpriced_holding_has_no_day_change(api: TestClient, stocks: QuoteSource) -> None:
+    worked_example(api)
+    stocks.error = ProviderUnavailableError("down")
+    [row] = api.get("/api/portfolio/holdings").json()
+    assert (row["day_change"], row["day_change_basis"]) == (None, None)
+    body = api.get("/api/portfolio/summary").json()
+    assert (body["total_day_change"], body["day_change_unavailable_symbols"]) == (None, ["AAPL"])
+
+
+def test_stale_quote_keeps_its_own_consistent_day_change(
+    api: TestClient, stocks: QuoteSource, clock: Clock
+) -> None:
+    worked_example(api)
+    previous_close(stocks, "AAPL", price="120", close="115")
+    api.get("/api/portfolio/holdings")
+
+    clock.now += 61
+    stocks.error = ProviderUnavailableError("down")
+    [row] = api.get("/api/portfolio/holdings").json()
+    assert row["price_is_stale"] is True
+    assert (row["day_change"], row["day_change_reference_price"]) == ("45", "115")
+
+
+def test_empty_portfolio_summary(api: TestClient) -> None:
+    body = api.get("/api/portfolio/summary").json()
+    assert (body["total_market_value"], body["total_cost_basis"]) == ("0", "0")
+    assert (body["total_day_change"], body["total_day_change_pct"]) == (None, None)
+    assert (body["allocation"], body["day_change_bases"]) == ([], [])

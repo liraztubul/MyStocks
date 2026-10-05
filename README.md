@@ -88,7 +88,14 @@ How P/L is calculated (see `backend/app/domain/pnl.py`):
 - **USD only.** All amounts are USD and there is no currency conversion.
 - **Precision.** The engine never rounds: it works in a 60-significant-digit Decimal context. The API rounds amounts to 10 decimal places and percentages to 4 (half-even), and the UI rounds again for display.
 - **Prices.** Live prices are cached for 60 seconds. If a provider is down or rate-limited, the last known price is shown, marked stale with its original timestamp. A holding that has never been priced shows no market value rather than failing the whole portfolio.
+- **Data delay.** The dashboard polls every 60 seconds (paused while the tab is hidden), on top of the 60-second cache, so a price can be about 2 minutes old plus any delay on the provider's side. Don't treat it as real-time.
+- **Daily change** (see `backend/app/domain/daily_change.py`) is price-only (fees excluded) and is measured from a *reference point*:
+  - **Stocks: since the previous close.** That's Finnhub's `pc`, for the session the latest quote belongs to. Before the market opens, that session is the last completed one, so the "previous close" can be days old (a Monday morning shows Friday's move). The UI shows which session.
+  - **Crypto: rolling 24h.** CoinGecko only offers a 24-hour % change, not a change since a close; crypto never closes. The base price is derived from that % and labelled "rolling 24h", so stock and crypto changes aren't directly comparable.
+  - Shares bought after the reference are measured from their **buy price**, not the reference. Shares sold after it count from the reference to the sell price.
+  - The portfolio total covers **open positions only**: a position fully closed since the reference drops out (its realized P/L still counts). Missing or zero reference data shows as "—", never as 0.
+- **Not financial advice.** Market data comes from free third-party APIs (Finnhub, CoinGecko) under their free-tier terms. This is an educational and personal-tracking project; numbers may be delayed, incomplete or wrong.
 
 ## Status
 
-M3 (P/L engine) — auth, a transaction ledger with oversell validation, symbol search + price autofill via Finnhub/CoinGecko, and average-cost holdings with realized/unrealized P/L. See [ROADMAP.md](ROADMAP.md) for milestones and known limitations.
+M5 (dashboard) — auth, a transaction ledger with oversell validation, symbol search + price autofill via Finnhub/CoinGecko, average-cost P/L, and a dashboard with summary cards, an allocation donut, daily change and realized trades. See [ROADMAP.md](ROADMAP.md) for milestones and known limitations.

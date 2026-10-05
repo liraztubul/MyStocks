@@ -1,26 +1,29 @@
 import type { Holding } from '../api/portfolio'
 import { useHoldings } from '../hooks/usePortfolio'
-import { formatMoney, formatPrice, formatSignedMoney, formatSignedPercent, gainClass } from './format'
+import { t } from '../strings'
+import { DayChange } from './DayChange'
+import { formatDateTime, formatMoney, formatPrice, formatSignedMoney, formatSignedPercent, gainClass } from './format'
 
 export function HoldingsTable() {
   const { data: holdings, error, isPending } = useHoldings()
 
-  if (isPending) return <p>Loading holdings…</p>
-  if (error) return <p role="alert">Could not load holdings: {error.message}</p>
-  if (holdings.length === 0) return <p>No open positions.</p>
+  if (isPending) return <p>{t.common.loading}</p>
+  if (error) return <p role="alert">{t.common.loadError(t.holdings.heading, error.message)}</p>
+  if (holdings.length === 0) return <p className="muted">{t.holdings.empty}</p>
 
   return (
     <div className="table-scroll">
       <table className="data-table">
         <thead>
           <tr>
-            <th>Symbol</th>
-            <th className="num">Quantity</th>
-            <th className="num">Avg cost</th>
-            <th className="num">Price</th>
-            <th className="num">Value</th>
-            <th className="num">Unrealized P/L</th>
-            <th className="num">%</th>
+            <th>{t.holdings.symbol}</th>
+            <th className="num">{t.holdings.quantity}</th>
+            <th className="num">{t.holdings.averageCost}</th>
+            <th className="num">{t.holdings.price}</th>
+            <th className="num">{t.holdings.value}</th>
+            <th className="num">{t.holdings.dayChange}</th>
+            <th className="num">{t.holdings.unrealized}</th>
+            <th className="num">{t.holdings.unrealizedPct}</th>
           </tr>
         </thead>
         <tbody>
@@ -29,7 +32,7 @@ export function HoldingsTable() {
           ))}
         </tbody>
       </table>
-      <p className="hint">All amounts in USD. Average cost includes buy fees.</p>
+      <p className="hint">{t.holdings.footnote}</p>
     </div>
   )
 }
@@ -46,25 +49,31 @@ function HoldingRow({ holding: h }: { holding: Holding }) {
       <td className="num">
         {h.current_price === null ? (
           <span className="hint warning" title={h.price_unavailable_reason ?? undefined}>
-            unavailable
+            {t.common.unavailable}
           </span>
         ) : (
           <>
             {formatPrice(h.current_price)}
             {h.price_is_stale && h.price_as_of && (
-              <span className="hint warning stale">
-                stale since {new Date(h.price_as_of).toLocaleString()}
-              </span>
+              <span className="sub warning">{t.holdings.staleSince(formatDateTime(h.price_as_of))}</span>
             )}
           </>
         )}
       </td>
-      <td className="num">{h.market_value === null ? '—' : formatMoney(h.market_value)}</td>
-      <td className={`num ${pnlClass ?? ''}`}>
-        {h.unrealized_pl === null ? '—' : formatSignedMoney(h.unrealized_pl)}
+      <td className="num">{h.market_value === null ? t.common.noValue : formatMoney(h.market_value)}</td>
+      <td className="num">
+        <DayChange
+          amount={h.day_change}
+          pct={h.day_change_pct}
+          basis={h.day_change_basis}
+          referenceAt={h.day_change_reference_at}
+        />
       </td>
       <td className={`num ${pnlClass ?? ''}`}>
-        {h.unrealized_pl_pct === null ? '—' : formatSignedPercent(h.unrealized_pl_pct)}
+        {h.unrealized_pl === null ? t.common.noValue : formatSignedMoney(h.unrealized_pl)}
+      </td>
+      <td className={`num ${pnlClass ?? ''}`}>
+        {h.unrealized_pl_pct === null ? t.common.noValue : formatSignedPercent(h.unrealized_pl_pct)}
       </td>
     </tr>
   )

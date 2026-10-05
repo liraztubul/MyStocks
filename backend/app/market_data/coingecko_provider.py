@@ -6,7 +6,12 @@ from typing import Any
 import httpx2
 
 from app.domain.enums import AssetType
-from app.market_data.dates import crypto_close_snapshot_date, within_free_crypto_history
+from app.market_data.dates import (
+    ROLLING_CHANGE_WINDOW,
+    crypto_close_snapshot_date,
+    price_before_change,
+    within_free_crypto_history,
+)
 from app.market_data.http import JsonResponse, get_json
 from app.market_data.provider import (
     AssetMatch,
@@ -15,6 +20,7 @@ from app.market_data.provider import (
     PriceUnavailableError,
     ProviderUnavailableError,
     Quote,
+    ReferenceKind,
     SymbolNotFoundError,
 )
 
@@ -94,18 +100,31 @@ class CoinGeckoProvider:
         coin_id = self._coin_id(symbol, provider_id)
         body = self._get(
             "/simple/price",
-            {"ids": coin_id, "vs_currencies": "usd", "include_last_updated_at": "true"},
+            {
+                "ids": coin_id,
+                "vs_currencies": "usd",
+                "include_last_updated_at": "true",
+                "include_24hr_change": "true",
+            },
         ).body
         entry = body.get(coin_id)
         if not entry or "usd" not in entry:
             raise SymbolNotFoundError(f"No USD price for {symbol.upper()} on CoinGecko.")
         updated = entry.get("last_updated_at")
+        price = Decimal(entry["usd"])
+        as_of = datetime.fromtimestamp(int(updated), tz=timezone.utc) if updated else self._now()
+        # CoinGecko returns null for the 24h change when its data is stale; no base then.
+        change_pct = entry.get("usd_24h_change")
+        reference = None if change_pct is None else price_before_change(price, Decimal(change_pct))
         return Quote(
             symbol=symbol.upper(),
             asset_type=AssetType.CRYPTO,
-            price=Decimal(entry["usd"]),
+            price=price,
             currency="USD",
-            as_of=datetime.fromtimestamp(int(updated), tz=timezone.utc) if updated else self._now(),
+            as_of=as_of,
+            reference_price=reference,
+            reference_at=as_of - ROLLING_CHANGE_WINDOW if reference is not None else None,
+            reference_kind=ReferenceKind.ROLLING_24H if reference is not None else None,
         )
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:

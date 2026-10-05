@@ -1,0 +1,78 @@
+// UI copy for the dashboard and navigation, kept in one place so a Hebrew table can be added
+// later by swapping this object.
+export const t = {
+  // Dates follow the UI language, not the browser's: mixing a Hebrew date into English copy is
+  // what happens otherwise. Switch together with the strings when Hebrew is added.
+  locale: 'en-US',
+  nav: {
+    dashboard: 'Dashboard',
+    transactions: 'Transactions',
+    label: 'Main',
+  },
+  common: {
+    loading: 'Loading…',
+    unavailable: 'unavailable',
+    noValue: '—',
+    usd: 'USD',
+    loadError: (what: string, message: string) => `Could not load ${what}: ${message}`,
+  },
+  summary: {
+    heading: 'Summary',
+    marketValue: 'Market value',
+    costBasis: 'Cost basis',
+    unrealized: 'Unrealized P/L',
+    realized: 'Realized P/L',
+    dayChange: 'Daily change',
+    partialTotals: 'Totals cover priced holdings only.',
+    stalePrices: 'Some prices are stale: the provider could not be reached, so the last known price is shown.',
+    unpriced: (symbols: string) => `No price available for ${symbols}; excluded from market value and P/L totals.`,
+    dayChangeUnavailable: (symbols: string) => `No daily change for ${symbols}.`,
+    dayChangeOpenOnly: 'Open positions only.',
+  },
+  dayChange: {
+    sincePreviousClose: 'since previous close',
+    rolling24h: 'rolling 24h',
+    mixed: 'stocks since previous close, crypto rolling 24h',
+    stockReference: (session: string) => `since previous close (session ${session})`,
+    cryptoReference: (since: string) => `rolling 24h (from ${since})`,
+  },
+  allocation: {
+    heading: 'Allocation',
+    other: 'Other',
+    empty: 'No priced holdings to chart.',
+    chartLabel: 'Portfolio allocation by market value',
+    excludesUnpriced: 'By market value of priced holdings.',
+  },
+  holdings: {
+    heading: 'Holdings',
+    empty: 'No open positions.',
+    symbol: 'Symbol',
+    quantity: 'Quantity',
+    averageCost: 'Avg cost',
+    price: 'Price',
+    value: 'Value',
+    dayChange: 'Daily change',
+    unrealized: 'Unrealized P/L',
+    unrealizedPct: '%',
+    staleSince: (when: string) => `stale since ${when}`,
+    footnote: 'Average cost includes buy fees. Daily change is price-only (fees excluded).',
+  },
+  realized: {
+    heading: 'Realized trades',
+    empty: 'No sells yet.',
+    date: 'Date',
+    symbol: 'Symbol',
+    quantity: 'Quantity',
+    sellPrice: 'Sell price',
+    fee: 'Fee',
+    averageCost: 'Avg cost at sale',
+    proceeds: 'Proceeds',
+    realized: 'Realized P/L',
+    footnote: 'Proceeds are net of the sell fee. Realized P/L = proceeds − average cost × quantity.',
+  },
+  disclaimer: [
+    'Cost basis: average cost; buy fees add to cost, sell fees reduce proceeds. All amounts in USD.',
+    'Prices come from free third-party APIs (Finnhub, CoinGecko), are refreshed about once a minute and may be delayed.',
+    'For educational and personal tracking use only. Not financial advice.',
+  ],
+}

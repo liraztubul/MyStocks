@@ -1,10 +1,11 @@
 from collections.abc import Callable
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import httpx2
 import pytest
 
+from app.domain.precision import exact
 from app.market_data.coingecko_provider import CoinGeckoProvider
 from app.market_data.dates import US_MARKET_TZ
 from app.market_data.finnhub_provider import FinnhubProvider
@@ -13,6 +14,7 @@ from app.market_data.provider import (
     PriceUnavailableError,
     ProviderUnavailableError,
     RateLimitedError,
+    ReferenceKind,
     SymbolNotFoundError,
 )
 
@@ -210,3 +212,55 @@ def test_coingecko_unknown_coin_is_not_found() -> None:
 def test_coingecko_unknown_id_on_simple_price_is_not_found() -> None:
     with pytest.raises(SymbolNotFoundError):
         coingecko(raw_json("{}")).get_quote("ZZZ", provider_id="zzz")
+
+
+# --- daily-change reference fields ---
+
+
+def test_finnhub_quote_carries_previous_close_as_reference() -> None:
+    body = f'{{"c": 333.77, "d": 0.08, "dp": 0.024, "pc": 333.69, "t": {FRIDAY_CLOSE_TS}}}'
+    quote = finnhub(raw_json(body)).get_quote("AAPL")
+    assert quote.reference_price == Decimal("333.69")
+    assert quote.reference_kind is ReferenceKind.PREVIOUS_CLOSE
+    # Session of Friday 2026-03-13 starts at 00:00 New York (EDT) = 04:00 UTC.
+    assert quote.reference_at == datetime(2026, 3, 13, 4, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("pc", ["0", "null"])
+def test_finnhub_zero_or_missing_previous_close_gives_no_reference(pc: str) -> None:
+    body = f'{{"c": 50.5, "pc": {pc}, "t": {FRIDAY_CLOSE_TS}}}'
+    quote = finnhub(raw_json(body)).get_quote("NEWIPO")
+    assert (quote.reference_price, quote.reference_at, quote.reference_kind) == (None, None, None)
+
+
+def test_finnhub_zeroed_unknown_symbol_never_becomes_a_quote() -> None:
+    # Observed live shape for unknown tickers: everything zero/null. No quote means no
+    # reference, so it can't turn into a bogus daily change.
+    body = '{"c": 0, "d": null, "dp": null, "h": 0, "l": 0, "o": 0, "pc": 0, "t": 0}'
+    with pytest.raises(SymbolNotFoundError):
+        finnhub(raw_json(body)).get_quote("ZZZZQ")
+
+
+def test_coingecko_quote_derives_rolling_24h_reference_from_percentage() -> None:
+    body = '{"bitcoin": {"usd": 110, "usd_24h_change": 10, "last_updated_at": 1790778750}}'
+    quote = coingecko(raw_json(body)).get_quote("BTC", provider_id="bitcoin")
+    assert quote.reference_price == Decimal("100")
+    assert quote.reference_kind is ReferenceKind.ROLLING_24H
+    assert quote.as_of - quote.reference_at == timedelta(hours=24)  # type: ignore[operator]
+
+
+def test_coingecko_keeps_the_percentage_exact() -> None:
+    body = '{"bitcoin": {"usd": 85222.53, "usd_24h_change": -0.09656965521299134}}'
+    quote = coingecko(raw_json(body)).get_quote("BTC", provider_id="bitcoin")
+    assert quote.reference_price is not None
+    # Re-applying the exact percentage reproduces the price.
+    with exact():
+        assert quote.reference_price * (1 + Decimal("-0.09656965521299134") / 100) == Decimal(
+            "85222.53"
+        )
+
+
+def test_coingecko_null_change_gives_no_reference() -> None:
+    body = '{"bitcoin": {"usd": 85222.53, "usd_24h_change": null}}'
+    quote = coingecko(raw_json(body)).get_quote("BTC", provider_id="bitcoin")
+    assert (quote.reference_price, quote.reference_kind) == (None, None)

@@ -7,7 +7,8 @@
 | M2 | Transactions ledger: CRUD, oversell validation, transactions page | Done |
 | M4 | Market data: Finnhub + CoinGecko search, quotes, price-on-date autofill (pulled ahead of M3) | Done |
 | M3 | P/L engine (average cost) + holdings/summary/realized endpoints, stale-price fallback | Done |
-| M5 | Portfolio dashboard (totals header, allocation chart, day change) | Next |
+| M5 | Portfolio dashboard: summary cards, allocation donut, daily change, realized trades | Done |
+| M6 | Price charts (TradingView Lightweight Charts) + a real router | Next |
 
 ## Known MVP limitations
 
@@ -87,3 +88,30 @@ CoinGecko responses on 2026-09-30.
   priced holdings only. `unpriced_symbols` lists the rest, and cost basis and realized P/L
   always cover everything.
 - **No tax-lot, wash-sale or holding-period handling.**
+
+### Dashboard (M5)
+
+- **Hash navigation is temporary.** The Dashboard and Transactions views switch on
+  `#/` vs `#/transactions` (`hooks/useHashRoute.ts`). **M6 should introduce a real router**
+  (e.g. React Router or TanStack Router) once there are per-symbol chart pages.
+- **Daily change, stocks:** "since previous close" means the close before the session of the
+  latest quote. Pre-market, that's the last *completed* session's change, possibly days old.
+  `day_change_reference_at` (00:00 New York on that session) is shown so this is visible.
+  A trade counts as "today's" if it's on or after that midnight. After-hours trades from the
+  previous evening count as before the reference, which is a simplification.
+- **Daily change, crypto:** rolling 24h, with the base price derived from CoinGecko's
+  percentage (`price / (1 + pct/100)`). That's exact given the percentage, but the percentage
+  itself is CoinGecko's. Not comparable to the stock basis, and the UI labels both.
+- **The day-change total covers open positions only.** A position fully closed since the
+  reference isn't included (it would need a quote for a symbol no longer held).
+- **Fees are excluded from daily change**; they're in cost basis and realized P/L.
+- **Polling cost:** each open stock symbol costs at most one Finnhub call a minute, shared
+  across users of one backend process, so the free tier's 60/min fits about 50 distinct stock
+  symbols. CoinGecko is called per coin; batching IDs into one `/simple/price` call is a cheap
+  future improvement.
+- **The donut shows at most 5 named slices + "Other",** ordered alphabetically, so its
+  colors stay next to the neighbours they were validated against. A symbol's color can
+  change when the set of named holdings changes.
+- **UI strings** for the new and touched components live in `frontend/src/strings.ts`
+  (dates follow its `locale`). The older login and transaction-form copy hasn't been moved
+  there yet. No Hebrew yet.
