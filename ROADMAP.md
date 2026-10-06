@@ -63,9 +63,24 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   fetch time when the provider fails, and pauses a provider after a 429 (its `Retry-After`, or
   60 seconds). Concurrent fills write the same rows through idempotent upserts; a test proves
   two simultaneous fills succeed, and that a plain insert would not.
-- **Not reachable from the API yet.** The service's ungated getter (`shared_price_history`) is
-  on the structural test's deny list; Stage 4 adds a gated way in through
-  `app/market_data/access.py`, like quotes.
+- **The endpoint (Stage 4, built):** `GET /api/assets/{symbol}/history?range=1M|3M|6M|YTD|1Y|ALL`
+  with optional `type=crypto|stock` (inferred from the user's record when they've traded it;
+  422 if it can't be) and `id=<coin id>`. It reaches the cache only through
+  `UserPriceHistoryDep` in `app/market_data/access.py`; the structural test checks both gates.
+  - **Coin:** `id` if given, else the user's recorded coin, else the coin rules; the response
+    says which coin and whether it was picked automatically. An ambiguous ticker is 200 with
+    `ambiguous: true` and candidates (id, name, rank), and no bars.
+  - **Stocks:** 200 `available: false`, reason `not_available_on_deployment` for blocked users
+    (decided before anything else, so it doesn't reveal whether the symbol exists) or
+    `provider_not_configured` for allowed ones until Tiingo exists. No data is invented.
+  - **Markers** come only from the requesting user's trades, on the trade's UTC day (crypto) or
+    New York trading day (stocks), snapped to the next bar if that day has no close. Trades
+    that can't be drawn are listed in `undrawn_trades` with a reason: `before_range` (older
+    than the chart, e.g. beyond crypto's 365 days), `after_range` (today: not closed yet),
+    `no_chart`, or `different_coin` (the chart shows another coin than the one the user's
+    trades are recorded under, via `?id=`).
+  - **`ALL`** starts at the user's first trade, capped at what the provider has, with
+    `range_note` saying so. 404 only for an unknown ticker or coin id.
 - **`daily_closes.close` is `Numeric(38, 18)`**, rounded half-even to 18 places on write
   (CoinGecko sends up to 17 significant digits as JSON numbers, parsed as `Decimal`), so
   micro-priced coins keep their significant digits. Trades and holdings stay `Numeric(28, 10)`

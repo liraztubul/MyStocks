@@ -12,6 +12,10 @@ from app.domain.precision import exact
 CLOSE_PLACES = 18
 _CLOSE_STEP = Decimal(1).scaleb(-CLOSE_PLACES)
 
+# Why a history result is stale (the cache was served because the provider failed).
+STALE_RATE_LIMITED = "The price provider asked us to slow down, so these are the last saved prices."
+STALE_UNAVAILABLE = "The price provider couldn't be reached, so these are the last saved prices."
+
 
 def round_close(value: Decimal) -> Decimal:
     # Wide context: quantizing a large value in the default 28-digit context raises instead.

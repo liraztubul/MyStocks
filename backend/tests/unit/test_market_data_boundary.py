@@ -3,8 +3,9 @@
 Two independent checks, so renaming or re-exporting can't slip past both:
 - source: no module in app/api imports app.market_data.service or .price_history (or names
   their ungated getters);
-- runtime: in FastAPI's resolved dependency graph, shared_market_data only ever appears as a
-  dependency of user_market_data, the function that applies the stock-data allowlist.
+- runtime: in FastAPI's resolved dependency graph, each ungated getter only ever appears as a
+  dependency of its gate (shared_market_data under user_market_data, shared_price_history under
+  user_price_history), the functions that apply the stock-data allowlist.
 """
 
 import ast
@@ -16,8 +17,12 @@ from fastapi.routing import APIRoute
 from starlette.routing import BaseRoute
 
 from app.main import app
-from app.market_data.access import user_market_data
+from app.market_data.access import user_market_data, user_price_history
+from app.market_data.price_history import shared_price_history
 from app.market_data.service import shared_market_data
+
+# Each ungated getter and the only function allowed to depend on it.
+GATES = {shared_market_data: user_market_data, shared_price_history: user_price_history}
 
 API_DIR = Path(__file__).resolve().parents[2] / "app" / "api"
 RAW_MODULES = {"app.market_data.service", "app.market_data.price_history"}
@@ -54,15 +59,20 @@ def _api_routes(routes: Sequence[BaseRoute]) -> Iterator[APIRoute]:
             yield from _api_routes(inner.routes)
 
 
-def _raw_dependency_parents(dependant: Dependant, parent: object) -> Iterator[object]:
+def _raw_dependency_parents(
+    dependant: Dependant, parent: object
+) -> Iterator[tuple[object, object]]:
     for sub in dependant.dependencies:
-        if sub.call is shared_market_data:
-            yield parent
+        if sub.call in GATES:
+            yield sub.call, parent
         yield from _raw_dependency_parents(sub, sub.call)
 
 
-def test_raw_service_is_only_reachable_through_the_gate() -> None:
+def test_raw_services_are_only_reachable_through_their_gates() -> None:
     routes = list(_api_routes(app.routes))
-    parents = [(r.path, p) for r in routes for p in _raw_dependency_parents(r.dependant, r.path)]
-    assert parents, "no route uses market data at all; the check would pass vacuously"
-    assert all(p is user_market_data for _, p in parents), parents
+    uses = [
+        (r.path, raw, p) for r in routes for raw, p in _raw_dependency_parents(r.dependant, r.path)
+    ]
+    for raw in GATES:
+        assert any(u[1] is raw for u in uses), f"no route uses {raw.__name__}; the check is vacuous"
+    assert all(parent is GATES[raw] for _, raw, parent in uses), uses

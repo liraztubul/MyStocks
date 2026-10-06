@@ -13,15 +13,17 @@ Error convention for "not available on this deployment" (code `not_available_on_
   deployment, not a failure.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import Depends
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.emails import normalize_email
 from app.core.security import CurrentUser
 from app.domain.enums import AssetType
+from app.market_data.price_history import HistoryResult, PriceHistoryService, shared_price_history
 from app.market_data.provider import (
     AssetMatch,
     MarketDataError,
@@ -89,3 +91,33 @@ def user_market_data(
 
 
 UserMarketDataDep = Annotated[UserMarketData, Depends(user_market_data)]
+
+
+class UserPriceHistory:
+    """The price-history cache, with the same stock-data allowlist as quotes."""
+
+    def __init__(self, shared: PriceHistoryService, *, stock_data_available: bool) -> None:
+        self._shared = shared
+        self.stock_data_available = stock_data_available
+
+    def now(self) -> datetime:
+        return self._shared.now()
+
+    def has_provider(self, asset_type: AssetType) -> bool:
+        return self._shared.supports(asset_type)
+
+    def closes(
+        self, db: Session, asset_type: AssetType, provider_id: str, start: date, end: date
+    ) -> HistoryResult:
+        if asset_type is AssetType.STOCK and not self.stock_data_available:
+            raise StockDataNotAvailableError()
+        return self._shared.closes(db, asset_type, provider_id, start, end)
+
+
+def user_price_history(
+    user: CurrentUser, shared: Annotated[PriceHistoryService, Depends(shared_price_history)]
+) -> UserPriceHistory:
+    return UserPriceHistory(shared, stock_data_available=stock_data_allowed(user.email))
+
+
+UserPriceHistoryDep = Annotated[UserPriceHistory, Depends(user_price_history)]

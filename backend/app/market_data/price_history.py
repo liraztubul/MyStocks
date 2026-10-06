@@ -22,7 +22,12 @@ from sqlalchemy.orm import Session
 
 from app.db.models import DailyClose, PriceHistoryCoverage
 from app.domain.enums import AssetType
-from app.market_data.history import DailyBar, DailyHistoryProvider
+from app.market_data.history import (
+    STALE_RATE_LIMITED,
+    STALE_UNAVAILABLE,
+    DailyBar,
+    DailyHistoryProvider,
+)
 from app.market_data.provider import MarketDataError, RateLimitedError, SymbolNotFoundError
 from app.market_data.service import coingecko_provider
 
@@ -31,9 +36,6 @@ DEFAULT_COOLDOWN = timedelta(seconds=60)
 # A close that wasn't published yet is asked for again at most this often.
 TAIL_RECHECK = timedelta(minutes=15)
 
-STALE_RATE_LIMITED = "The price provider asked us to slow down, so these are the last saved prices."
-STALE_UNAVAILABLE = "The price provider couldn't be reached, so these are the last saved prices."
-
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -41,6 +43,8 @@ def _utc_now() -> datetime:
 
 @dataclass(frozen=True)
 class HistoryResult:
+    # The provider's key (daily_closes.provider), e.g. "coingecko".
+    provider: str
     bars: list[DailyBar]
     # The range actually served, after clamping to what the provider can return.
     start: date
@@ -79,6 +83,10 @@ class PriceHistoryService:
     def supports(self, asset_type: AssetType) -> bool:
         return asset_type in self._providers
 
+    def now(self) -> datetime:
+        # The service clock, so callers computing date ranges agree with it (tests can fix it).
+        return self._now()
+
     def closes(
         self, db: Session, asset_type: AssetType, provider_id: str, start: date, end: date
     ) -> HistoryResult:
@@ -111,6 +119,7 @@ class PriceHistoryService:
         ).all()
         coverage = db.get(PriceHistoryCoverage, (provider.name, provider_id))
         return HistoryResult(
+            provider=provider.name,
             bars=[DailyBar(r.day, r.close, r.split_factor, r.dividend) for r in rows],
             start=start,
             end=end,
