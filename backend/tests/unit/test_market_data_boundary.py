@@ -1,7 +1,8 @@
 """Default-deny by construction: no endpoint may reach the ungated market data service.
 
 Two independent checks, so renaming or re-exporting can't slip past both:
-- source: no module in app/api imports app.market_data.service (or names its getter);
+- source: no module in app/api imports app.market_data.service or .price_history (or names
+  their ungated getters);
 - runtime: in FastAPI's resolved dependency graph, shared_market_data only ever appears as a
   dependency of user_market_data, the function that applies the stock-data allowlist.
 """
@@ -19,17 +20,17 @@ from app.market_data.access import user_market_data
 from app.market_data.service import shared_market_data
 
 API_DIR = Path(__file__).resolve().parents[2] / "app" / "api"
-RAW_MODULE = "app.market_data.service"
-RAW_NAMES = {"shared_market_data", "MarketData"}
+RAW_MODULES = {"app.market_data.service", "app.market_data.price_history"}
+RAW_NAMES = {"shared_market_data", "MarketData", "shared_price_history", "PriceHistoryService"}
 
 
 def _violations(path: Path) -> Iterator[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == RAW_MODULE:
-            yield f"{path.name}:{node.lineno} imports from {RAW_MODULE}"
-        elif isinstance(node, ast.Import) and any(a.name == RAW_MODULE for a in node.names):
-            yield f"{path.name}:{node.lineno} imports {RAW_MODULE}"
+        if isinstance(node, ast.ImportFrom) and node.module in RAW_MODULES:
+            yield f"{path.name}:{node.lineno} imports from {node.module}"
+        elif isinstance(node, ast.Import) and any(a.name in RAW_MODULES for a in node.names):
+            yield f"{path.name}:{node.lineno} imports a raw market data module"
         elif isinstance(node, ast.Name | ast.Attribute):
             name = node.id if isinstance(node, ast.Name) else node.attr
             if name in RAW_NAMES:

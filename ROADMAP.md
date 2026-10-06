@@ -54,12 +54,25 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   make duplicate fetches harmless. **Bring the budget back** (a calls table counting
   requests per hour, day and month) before anything fans out across many symbols at once
   (W2 sparklines, M6b portfolio-over-time) or when there is more than one backend instance.
-- **`daily_closes.close` will be `Numeric(38, 18)`**, rounded half-even to 18 places on write
+- **The cache (Stage 3, built):** `daily_closes` holds one final close per provider series
+  (keyed by the provider's own id, the CoinGecko coin id, not a user's ticker) and is shared by
+  every user. `price_history_coverage` remembers which days were fetched: older days without a
+  close (not listed yet) are a final answer and never refetched; newer days without a close yet
+  are rechecked at most every 15 minutes (`checked_to` separates "asked before" from "new").
+  `PriceHistoryService` fetches only the missing ranges, serves the cache marked stale with its
+  fetch time when the provider fails, and pauses a provider after a 429 (its `Retry-After`, or
+  60 seconds). Concurrent fills write the same rows through idempotent upserts; a test proves
+  two simultaneous fills succeed, and that a plain insert would not.
+- **Not reachable from the API yet.** The service's ungated getter (`shared_price_history`) is
+  on the structural test's deny list; Stage 4 adds a gated way in through
+  `app/market_data/access.py`, like quotes.
+- **`daily_closes.close` is `Numeric(38, 18)`**, rounded half-even to 18 places on write
   (CoinGecko sends up to 17 significant digits as JSON numbers, parsed as `Decimal`), so
   micro-priced coins keep their significant digits. Trades and holdings stay `Numeric(28, 10)`
   for now; see "Precision of micro-priced coins" under Transactions.
 - **Crypto history is clamped to the past 365 days** (CoinGecko's free history; error code
-  10012 beyond it). Trades older than the drawn range are left off the chart's markers but stay
+  10012 beyond it; the adapter requests at most 364 days of snapshots back, a day inside the
+  window, because the limit is measured from the request time). Trades older than the drawn range are left off the chart's markers but stay
   in the trades table, and the chart must render normally when every trade is older.
 - **CoinGecko facts verified by the Stage 2 probe (keyless API, 2026-10-06):** `interval=daily`
   works; without it a range of 90 days or less comes back hourly. Daily points sit at 00:00 UTC,

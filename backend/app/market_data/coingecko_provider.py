@@ -1,6 +1,6 @@
 import threading
 from collections.abc import Callable
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -10,11 +10,13 @@ from cachetools import TTLCache
 from app.domain.enums import AssetType
 from app.market_data.coin_resolution import CoinChoiceNeeded, CoinPick, resolve_coin
 from app.market_data.dates import (
+    COINGECKO_FREE_HISTORY_DAYS,
     ROLLING_CHANGE_WINDOW,
     crypto_close_snapshot_date,
     price_before_change,
     within_free_crypto_history,
 )
+from app.market_data.history import DailyBar, round_close
 from app.market_data.http import JsonResponse, get_json
 from app.market_data.provider import (
     AmbiguousSymbolError,
@@ -30,6 +32,9 @@ from app.market_data.provider import (
 
 BASE_URL = "https://api.coingecko.com/api/v3"
 NAME = "CoinGecko"
+# Stored with cached closes (daily_closes.provider).
+HISTORY_KEY = "coingecko"
+_MS_PER_DAY = 86_400_000
 MAX_SEARCH_RESULTS = 8
 # How long a ticker -> coin resolution is reused: holdings re-price every minute, and resolving
 # costs a /search call each time otherwise. A coin's rank doesn't swing within an hour.
@@ -51,7 +56,10 @@ def _error_code(body: Any) -> int | None:
     # Errors come back as {"error": {"status": {...}}} or {"status": {...}} depending on endpoint.
     if not isinstance(body, dict):
         return None
-    status = (body.get("error") or body).get("status") or {}
+    # {"error": "coin not found"} (a plain string, seen in the M6a probe) carries no code.
+    error = body.get("error")
+    container = error if isinstance(error, dict) else body
+    status = container.get("status") or {}
     return status.get("error_code") if isinstance(status, dict) else None
 
 
@@ -157,6 +165,56 @@ class CoinGeckoProvider:
             coin_name=coin_name,
             coin_auto_picked=auto_picked,
         )
+
+    # --- Daily history (DailyHistoryProvider) ----------------------------------------------------
+    # Verified by the M6a probe (keyless API, 2026-10-06): with interval=daily every point sits at
+    # 00:00 UTC and the point at D+1 00:00 is the close of UTC day D; ranges starting more than
+    # 365 days back are refused with error 10012.
+
+    name = HISTORY_KEY
+
+    def earliest_available(self, now: datetime) -> date | None:
+        # The free plan's window is measured from the request time, so stay a day inside it: the
+        # oldest snapshot requested is 364 days back, i.e. the close of 365 days ago.
+        oldest_snapshot = now.astimezone(timezone.utc).date() - timedelta(
+            days=COINGECKO_FREE_HISTORY_DAYS - 1
+        )
+        return oldest_snapshot - timedelta(days=1)
+
+    def last_final_date(self, now: datetime) -> date:
+        # Today's UTC day is still trading; yesterday's close is today's 00:00 snapshot.
+        return now.astimezone(timezone.utc).date() - timedelta(days=1)
+
+    def get_daily_closes(self, provider_id: str, start: date, end: date) -> list[DailyBar]:
+        earliest = self.earliest_available(self._now())
+        if earliest is not None:
+            start = max(start, earliest)
+        if start > end:
+            return []
+        # A day's close is the next day's 00:00 snapshot, so ask for start+1 .. end+1 (inclusive).
+        snapshot_from = datetime.combine(start + timedelta(days=1), time(0), tzinfo=timezone.utc)
+        snapshot_to = datetime.combine(end + timedelta(days=1), time(0), tzinfo=timezone.utc)
+        body = self._get(
+            f"/coins/{provider_id}/market_chart/range",
+            {
+                "vs_currency": "usd",
+                "from": str(int(snapshot_from.timestamp())),
+                "to": str(int(snapshot_to.timestamp())),
+                # Without it, ranges of 90 days or less come back hourly.
+                "interval": "daily",
+            },
+        ).body
+        bars: dict[date, DailyBar] = {}
+        for point in body.get("prices") or []:
+            millis, price = int(point[0]), point[1]
+            # Only midnight snapshots are closes; anything else (an in-progress "now" point some
+            # endpoints append) would pass a moving price off as a final close.
+            if millis % _MS_PER_DAY != 0 or price is None:
+                continue
+            day = datetime.fromtimestamp(millis / 1000, tz=timezone.utc).date() - timedelta(days=1)
+            if start <= day <= end:
+                bars[day] = DailyBar(day, round_close(Decimal(price)))
+        return [bars[day] for day in sorted(bars)]
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:
         today = self._now().date()

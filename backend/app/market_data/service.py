@@ -54,13 +54,23 @@ class MarketData:
 # app.market_data.access.UserMarketDataDep, which applies the stock-data allowlist before any
 # provider or cache is touched (enforced by tests/unit/test_market_data_boundary.py).
 @lru_cache
+def http_client() -> httpx2.Client:
+    return httpx2.Client(timeout=settings.market_data_timeout_seconds)
+
+
+@lru_cache
+def coingecko_provider() -> CoinGeckoProvider:
+    # One instance for quotes and history, so they share its coin-resolution cache.
+    return CoinGeckoProvider(http_client(), demo_api_key=settings.coingecko_demo_api_key)
+
+
+@lru_cache
 def shared_market_data() -> MarketData:
-    client = httpx2.Client(timeout=settings.market_data_timeout_seconds)
     return MarketData(
         {
-            AssetType.STOCK: CachedProvider(FinnhubProvider(settings.finnhub_api_key, client)),
-            AssetType.CRYPTO: CachedProvider(
-                CoinGeckoProvider(client, demo_api_key=settings.coingecko_demo_api_key)
+            AssetType.STOCK: CachedProvider(
+                FinnhubProvider(settings.finnhub_api_key, http_client())
             ),
+            AssetType.CRYPTO: CachedProvider(coingecko_provider()),
         }
     )
