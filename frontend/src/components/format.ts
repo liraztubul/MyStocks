@@ -31,6 +31,12 @@ export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(t.locale, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+// A calendar day ("2026-09-04", a bar's or trade's date). Formatted in UTC: parsed as UTC
+// midnight, it would show as the previous day in browsers west of UTC otherwise.
+export function formatDay(day: string): string {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString(t.locale, { dateStyle: 'medium', timeZone: 'UTC' })
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(t.locale, { dateStyle: 'medium' })
 }

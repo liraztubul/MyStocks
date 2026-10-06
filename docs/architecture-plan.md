@@ -74,7 +74,8 @@ MyStocks/
 | M5.9 | Theme toggle: light/dark only, OS preference until chosen | Done, verified in browser |
 | M6a.1 | Router: real paths, deep links, legacy `#/` redirect; asset page at `/assets/:symbol` (`/holdings/:symbol` redirects), build files under `/static/` | Done, verified locally; production checks by owner |
 | M6a.g | Stock-data allowlist (one server-side gate, default-deny) | Done, verified in browser |
-| M6 | Price chart | In progress (M6a) |
+| M6a | Asset page with crypto price chart (history cache, coin identity, gated endpoint) | Done, verified in browser |
+| M6b | Portfolio value over time; stock history (Tiingo) | Next |
 | M7 | Polish + deploy | Not started |
 
 ## The 3 riskiest technical decisions (from initial planning)

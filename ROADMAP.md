@@ -15,7 +15,8 @@
 | M5.9 | Theme toggle reduced to light/dark; OS preference until the user picks | Done |
 | M6a.1 | Real router (React Router), deep links, legacy `#/` redirect | Done |
 | M6a.g | Stock-data allowlist: one server-side gate for all stock market data | Done |
-| M6 | Price charts (TradingView Lightweight Charts) | In progress (M6a) |
+| M6a | Asset page with a crypto price chart (router, gate, coin identity, cache, endpoint, chart) | Done |
+| M6b | Portfolio value over time; stock history (Tiingo) | Next |
 
 ## Watchlist (planned, not started)
 
@@ -42,7 +43,7 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   events. Options to weigh then: a paid always-on instance, a scheduled job (GitHub Actions or
   Render cron), or a hosted queue.
 
-## Price history (M6a, in progress)
+## Price history (M6a)
 
 - **The history endpoint doesn't require a position.** Any symbol gets a normal chart. Markers
   come only from the requesting user's own ledger, and are `[]` when there are no trades. 404
@@ -81,6 +82,31 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
     trades are recorded under, via `?id=`).
   - **`ALL`** starts at the user's first trade, capped at what the provider has, with
     `range_note` saying so. 404 only for an unknown ticker or coin id.
+- **The asset page (Stage 5, built):** `/assets/:symbol?type=&id=`, linked from every holding's
+  ticker (with the recorded coin id). TradingView Lightweight Charts 5.2.1, pinned and loaded
+  only with this page. A raw-close line with buy (arrowUp, "B", accent) and sell (arrowDown,
+  "S", violet) markers at the exact trade price; colours read from the CSS tokens and
+  re-applied when the theme changes; the chart is always left to right.
+  - **Attribution:** the library's logo is off (it injects a `<style>` our CSP blocks and sends
+    the page path to tradingview.com). The page links "Chart by TradingView Lightweight Charts",
+    "Data: CoinGecko" and `/third-party-notices.txt`, which carries the library's NOTICE file
+    verbatim.
+  - **Numbers:** `toChartPoint` in `components/chartData.ts` is the only place a Decimal string
+    becomes a number (drawing only). Axis and crosshair labels use one precision per chart, from
+    its smallest close (about four significant digits below 1), so a micro-priced coin reads
+    0.000004385, not 0.00. Tables and the caption keep the API's exact strings, so a micro price
+    there shows all its digits (up to 18 places): exact, but long.
+  - **Accessibility:** the canvas is hidden from screen readers inside a `<figure>` whose caption
+    summarises the range, last close, low and high; a trades table lists every trade, with a
+    reason for each one not drawn. Range buttons are an `aria-pressed` group of 44px buttons.
+  - **Picker:** an ambiguous ticker shows "Which X do you mean?" with the candidates from the
+    history response (name, coin id, market-cap rank). "Not this one?" on an automatic pick shows
+    the coins search finds for the ticker (search doesn't return ranks, so none are shown).
+    Picking changes the chart only (`?id=`); the coin recorded for the user's trades still
+    changes only by picking it in search when adding a trade.
+  - **Known gaps:** the chart's own zoom and scroll aren't keyboard-operable (the library
+    doesn't support it; the caption and table carry the same information). A tab left open
+    across a deploy may fail to load the page's lazy chunk until reloaded.
 - **`daily_closes.close` is `Numeric(38, 18)`**, rounded half-even to 18 places on write
   (CoinGecko sends up to 17 significant digits as JSON numbers, parsed as `Decimal`), so
   micro-priced coins keep their significant digits. Trades and holdings stay `Numeric(28, 10)`

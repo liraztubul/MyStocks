@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import type { Holding } from '../api/portfolio'
 import { NOT_AVAILABLE_ON_DEPLOYMENT } from '../api/writeErrors'
 import { useHoldings } from '../hooks/usePortfolio'
 import { t } from '../strings'
+import { assetPath } from './assetLinks'
 import { DayChange } from './DayChange'
 import { FormError } from './FormError'
 import { formatDateTime, formatMoney, formatPrice, formatSignedMoney, formatSignedPercent } from './format'
@@ -150,7 +152,13 @@ function SymbolCell({ holding: h }: { holding: Holding }) {
   return (
     <span className="symbol-stack">
       <span className="symbol-cell">
-        <span className="symbol">{h.symbol}</span>
+        <Link
+          className="symbol symbol-link"
+          to={assetPath(h.symbol, h.asset_type, h.asset_type === 'crypto' ? h.coin_id : null)}
+          aria-label={t.holdings.assetLink(h.symbol)}
+        >
+          {h.symbol}
+        </Link>
         <span className={`tag tag-${h.asset_type}`}>{h.asset_type}</span>
       </span>
       {/* Never a silent guess: say which coin was chosen for the user. */}
