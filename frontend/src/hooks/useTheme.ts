@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react'
-import {
-  applyTheme,
-  onSystemThemeChange,
-  readPreference,
-  resolveTheme,
-  writePreference,
-  type ThemePreference,
-} from '../theme'
+import { applyTheme, onOsThemeChange, osTheme, readStoredTheme, writeStoredTheme, type Theme } from '../theme'
 
 export function useTheme() {
-  // index.html already applied this preference before first paint; React just takes over.
-  const [preference, setPreference] = useState<ThemePreference>(readPreference)
+  // index.html already applied this before first paint; React just takes over.
+  const [stored, setStored] = useState<Theme | null>(readStoredTheme)
+  const [os, setOs] = useState<Theme>(osTheme)
+  const theme = stored ?? os
 
   useEffect(() => {
-    applyTheme(resolveTheme(preference))
-    if (preference !== 'system') return
-    return onSystemThemeChange(() => applyTheme(resolveTheme('system')))
-  }, [preference])
+    applyTheme(theme)
+  }, [theme])
+
+  // Until the user picks one, the page keeps following the OS (e.g. an automatic switch to dark
+  // at sunset). After an explicit choice, OS changes are ignored.
+  useEffect(() => {
+    if (stored !== null) return
+    return onOsThemeChange(() => setOs(osTheme()))
+  }, [stored])
 
   useEffect(() => {
     // Colour transitions switch on only after first render, so loading the page doesn't
@@ -25,10 +25,10 @@ export function useTheme() {
     return () => cancelAnimationFrame(frame)
   }, [])
 
-  function choose(next: ThemePreference) {
-    writePreference(next)
-    setPreference(next)
+  function choose(next: Theme) {
+    writeStoredTheme(next)
+    setStored(next)
   }
 
-  return { preference, choose }
+  return { theme, choose }
 }

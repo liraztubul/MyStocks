@@ -12,14 +12,13 @@
          Classic (non-module) script so it runs synchronously; mirrors src/theme.ts. -->
     <script>
       (function () {
-        var pref = 'system'
+        var stored = null
         try {
-          var stored = localStorage.getItem('mystocks-theme')
-          if (stored === 'light' || stored === 'dark' || stored === 'system') pref = stored
+          stored = localStorage.getItem('mystocks-theme')
         } catch (e) {}
         var dark =
-          pref === 'dark' ||
-          (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          stored === 'dark' ||
+          (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
         var theme = dark ? 'dark' : 'light'
         document.documentElement.dataset.theme = theme
         document.documentElement.style.colorScheme = theme

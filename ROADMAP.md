@@ -12,6 +12,7 @@
 | M5.5 | Free-tier production deploy: Vercel + Render + Neon, invite-only signup, rate limits, CSP, encrypted backups | Built; live verification pending |
 | M5.7 | Personality pass: Ledgie mascot, warm tokens in both themes, Rubik font, motion, first-entry celebration | Done |
 | M5.8 | Sell from holdings (dialog with 25% / 50% / All), buy-only add form, status-aware write errors | Done |
+| M5.9 | Theme toggle reduced to light/dark; OS preference until the user picks | Done |
 | M6 | Price charts (TradingView Lightweight Charts) + a real router | Next |
 
 ## Known MVP limitations
@@ -162,6 +163,11 @@ CoinGecko responses on 2026-09-30.
 - **The theme logic is duplicated** between that inline script and `src/theme.ts` (storage key,
   the dark-mode test, the `theme-color` values), because the script must run before any module
   loads. Both carry a "keep in sync" comment.
+- **Theme toggle is light/dark only (since M5.9).** The rule (in both places): a stored `'light'`
+  or `'dark'` wins; anything else (nothing stored, the retired `'system'` value, or junk) means
+  "no choice yet" and follows `prefers-color-scheme`, including live OS changes. Old `'system'`
+  values are not rewritten; they're ignored until the user clicks a segment. There is no way
+  back to "follow the OS" once a choice is made, short of clearing site data.
 - **No frontend test runner.** Lint, typecheck, build and the throwaway Playwright checks in
   the scratchpad are the only frontend gates. Adding Vitest + Testing Library (plus a Playwright
   smoke test in CI) is the natural next step.

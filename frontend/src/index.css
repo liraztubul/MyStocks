@@ -513,7 +513,7 @@ a {
   border-radius: var(--radius-pill);
 }
 
-/* A single thumb springs between the three options; its position comes from data-active. */
+/* A single thumb springs between the two options; its position comes from data-active. */
 .segmented-thumb {
   position: absolute;
   inset-block: 3px;
@@ -533,17 +533,9 @@ a {
   transform: translateX(calc(var(--touch) + 2px));
 }
 
-.segmented[data-active='2'] .segmented-thumb {
-  transform: translateX(calc(2 * (var(--touch) + 2px)));
-}
-
 /* transform isn't a logical property, so mirror the travel for right-to-left layouts. */
 :dir(rtl) .segmented[data-active='1'] .segmented-thumb {
   transform: translateX(calc(-1 * (var(--touch) + 2px)));
-}
-
-:dir(rtl) .segmented[data-active='2'] .segmented-thumb {
-  transform: translateX(calc(-2 * (var(--touch) + 2px)));
 }
 
 .segmented button {

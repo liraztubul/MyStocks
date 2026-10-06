@@ -13,7 +13,6 @@ export const t = {
     label: 'Theme',
     light: 'Light theme',
     dark: 'Dark theme',
-    system: 'Use system theme',
   },
   common: {
     loading: 'Loading…',
