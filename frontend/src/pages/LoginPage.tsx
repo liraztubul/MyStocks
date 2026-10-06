@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { isServerWaking } from '../api/client'
-import { Icon } from '../components/Icon'
+import { Ledgie, Sparkles } from '../components/Ledgie'
 import { ServerWakeNotice } from '../components/ServerWakeNotice'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { useLogin, useRegister } from '../hooks/useAuth'
@@ -46,14 +46,16 @@ export function LoginPage() {
         <ThemeToggle />
       </div>
       <main className="auth-card card">
-        <div className="brand brand-large">
-          <span className="brand-mark" aria-hidden="true">
-            <Icon name="logo" size={24} />
-          </span>
-          {t.appName}
+        <div className="auth-hero" aria-hidden="true">
+          <Sparkles />
+          <Ledgie pose="coin" size={150} />
         </div>
+        <div className="brand brand-large">{t.appName}</div>
         <p className="muted auth-tagline">{t.auth.tagline}</p>
-        <h1 className="auth-title">{mode === 'login' ? t.auth.logIn : t.auth.createAccount}</h1>
+        <h1 className="auth-title">
+          {mode === 'login' ? t.auth.welcome : t.auth.welcomeNew}
+          <span className="visually-hidden"> {mode === 'login' ? t.auth.logIn : t.auth.createAccount}</span>
+        </h1>
         <form onSubmit={handleSubmit} className="stack">
           <label className="field">
             <span className="field-label">{t.auth.email}</span>

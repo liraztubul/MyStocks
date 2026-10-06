@@ -11,8 +11,12 @@ const OPTIONS: { value: ThemePreference; icon: IconName; label: string }[] = [
 
 export function ThemeToggle() {
   const { preference, choose } = useTheme()
+  const active = OPTIONS.findIndex((option) => option.value === preference)
   return (
-    <div className="segmented" role="group" aria-label={t.theme.label}>
+    // The thumb's position is a data attribute + CSS (no inline style), so it stays CSP-clean
+    // and springs between options.
+    <div className="segmented" role="group" aria-label={t.theme.label} data-active={active}>
+      <span className="segmented-thumb" aria-hidden="true" />
       {OPTIONS.map((option) => (
         <button
           key={option.value}

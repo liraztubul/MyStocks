@@ -1,3 +1,4 @@
+import { FirstEntryCelebration } from '../components/FirstEntryCelebration'
 import { RowsSkeleton } from '../components/Skeleton'
 import { TransactionForm } from '../components/TransactionForm'
 import { TransactionTable } from '../components/TransactionTable'
@@ -9,6 +10,7 @@ export function TransactionsPage() {
 
   return (
     <>
+      <FirstEntryCelebration count={transactions?.length} />
       <section aria-labelledby="add-heading" className="card section">
         <h2 id="add-heading">{t.transactions.addHeading}</h2>
         <TransactionForm transactions={transactions ?? []} />

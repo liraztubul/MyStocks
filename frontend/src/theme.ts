@@ -4,7 +4,7 @@ export type ResolvedTheme = 'light' | 'dark'
 // Keep in sync with the pre-paint script in index.html, which can't import this module.
 export const THEME_STORAGE_KEY = 'mystocks-theme'
 // Matches --bg in index.css so the browser chrome blends into the page.
-const THEME_COLOR: Record<ResolvedTheme, string> = { light: '#f4f6fa', dark: '#0b0e14' }
+const THEME_COLOR: Record<ResolvedTheme, string> = { light: '#f7f5ff', dark: '#0f0d1f' }
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 function isPreference(value: unknown): value is ThemePreference {

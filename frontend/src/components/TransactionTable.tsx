@@ -1,22 +1,36 @@
+import { useRef, useState } from 'react'
 import type { Transaction } from '../api/transactions'
 import { useDeleteTransaction } from '../hooks/useTransactions'
 import { t } from '../strings'
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { formatDateTime } from './format'
 import { Icon } from './Icon'
 
+// Deleting a buy can leave later sells of the same symbol uncovered (the ledger isn't
+// re-validated on delete), so the confirmation warns about it up front.
+function hasLaterSells(transactions: Transaction[], tx: Transaction): boolean {
+  if (tx.side !== 'buy') return false
+  const at = new Date(tx.executed_at).getTime()
+  return transactions.some(
+    (other) => other.symbol === tx.symbol && other.side === 'sell' && new Date(other.executed_at).getTime() >= at,
+  )
+}
+
 export function TransactionTable({ transactions }: { transactions: Transaction[] }) {
   const remove = useDeleteTransaction()
+  const [confirming, setConfirming] = useState<Transaction | null>(null)
+  const tableRegion = useRef<HTMLDivElement>(null)
+
+  function close() {
+    setConfirming(null)
+    remove.reset()
+  }
 
   if (transactions.length === 0) return <p className="muted">{t.transactions.empty}</p>
 
   return (
     <>
-      {remove.error && (
-        <p role="alert" className="form-error">
-          {remove.error.message}
-        </p>
-      )}
-      <div className="table-scroll">
+      <div ref={tableRegion} className="table-scroll" tabIndex={-1}>
         <table className="data-table sticky-first">
           <thead>
             <tr>
@@ -38,7 +52,7 @@ export function TransactionTable({ transactions }: { transactions: Transaction[]
                 <th scope="row">
                   <span className="symbol">{tx.symbol}</span>
                 </th>
-                <td className="tabular">{formatDateTime(tx.executed_at)}</td>
+                <td className="tabular date-cell">{formatDateTime(tx.executed_at)}</td>
                 <td>
                   <span className={`tag tag-${tx.asset_type}`}>{t.transactions.assetTypes[tx.asset_type]}</span>
                 </td>
@@ -54,9 +68,9 @@ export function TransactionTable({ transactions }: { transactions: Transaction[]
                   <button
                     type="button"
                     className="button button-danger-ghost"
-                    disabled={remove.isPending}
                     aria-label={t.transactions.deleteLabel(tx.symbol, formatDateTime(tx.executed_at))}
-                    onClick={() => remove.mutate(tx.id)}
+                    aria-haspopup="dialog"
+                    onClick={() => setConfirming(tx)}
                   >
                     <Icon name="trash" size={18} />
                     <span className="button-text">{t.transactions.delete}</span>
@@ -67,6 +81,18 @@ export function TransactionTable({ transactions }: { transactions: Transaction[]
           </tbody>
         </table>
       </div>
+      {confirming && (
+        <ConfirmDeleteDialog
+          key={confirming.id}
+          transaction={confirming}
+          hasLaterSells={hasLaterSells(transactions, confirming)}
+          pending={remove.isPending}
+          error={remove.error?.message ?? null}
+          onCancel={close}
+          onConfirm={() => remove.mutate(confirming.id, { onSuccess: close })}
+          fallbackFocus={tableRegion}
+        />
+      )}
     </>
   )
 }

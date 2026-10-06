@@ -66,7 +66,23 @@ export function AllocationDonut({ summary }: { summary: PortfolioSummary }) {
   return (
     <div className="donut" onMouseLeave={() => setActive(null)}>
       <svg viewBox="0 0 100 100" role="img" aria-label={t.allocation.chartLabel} className="donut-svg">
-        <g transform="rotate(-90 50 50)">
+        {/* Draw-in: one mask whose stroke sweeps around once (CSS), revealing the finished donut. */}
+        <defs>
+          <mask id="donut-reveal">
+            <circle
+              className="donut-reveal"
+              cx="50"
+              cy="50"
+              r={RADIUS}
+              fill="none"
+              stroke="white"
+              strokeWidth={STROKE + 8}
+              pathLength={100}
+              transform="rotate(-90 50 50)"
+            />
+          </mask>
+        </defs>
+        <g transform="rotate(-90 50 50)" mask="url(#donut-reveal)">
           {arcs.map(({ segment, start, length }) => (
             <circle
               key={segment.key}

@@ -10,6 +10,7 @@
 | M5 | Portfolio dashboard: summary cards, allocation donut, daily change, realized trades | Done |
 | M5.6 | Visual redesign: design tokens, light/dark/system theme, mobile-first layout, skeletons, empty state | Done |
 | M5.5 | Free-tier production deploy: Vercel + Render + Neon, invite-only signup, rate limits, CSP, encrypted backups | Built; live verification pending |
+| M5.7 | Personality pass: Ledgie mascot, warm tokens in both themes, Rubik font, motion, first-entry celebration | Done |
 | M6 | Price charts (TradingView Lightweight Charts) + a real router | Next |
 
 ## Known MVP limitations
@@ -34,7 +35,9 @@
   exceeds what was held at that point in the history, but `DELETE` does not. Deleting a buy
   can therefore leave a later sell uncovered (a negative running balance). A fix would run
   the same `find_oversell` check on delete and either reject it or flag the ledger as
-  inconsistent; deferred for M2.
+  inconsistent; deferred for M2. Since M5.7 the UI mitigates it: deleting a buy with later
+  sells of the same symbol shows an explicit warning in the confirmation dialog. The server
+  still doesn't block it.
 - **USD only.** `currency` is stored per transaction, but the API accepts only `"USD"`.
   Multi-currency (ILS / TASE) is Phase 2.
 - **Symbols aren't validated on save.** The form now suggests real symbols (M4), but
@@ -167,3 +170,34 @@ CoinGecko responses on 2026-09-30.
   - whether Render counts spin-up time toward instance hours.
 - **Migrations must stay backward-compatible** (expand then contract), because the old
   instance serves while the new one migrates.
+
+### Personality (M5.7)
+
+- **Font: Rubik (variable 300–900, SIL OFL 1.1),** self-hosted in `frontend/public/fonts/`.
+  It's split into a Latin face (35 KB, preloaded) and a Hebrew face (9 KB), and the Hebrew file
+  downloads only when Hebrew characters appear (`unicode-range`); verified in a browser.
+  Rubik's default digits are proportional, so every number relies on `tabular-nums`, which
+  switches to its `.tf` digits (all 600 units wide).
+- **Colour semantics follow usability conventions (Norman, Shneiderman).** Green means gain.
+  Red means loss **or danger**: destructive actions (Delete) and error messages use a separate
+  `--danger` token, with the same red, so users recognise them instantly. Red is never
+  decorative. Accent hues (violet, coral, cyan, sunny) decorate chips, tags and illustrations
+  only, never numbers.
+- **Delete takes two deliberate confirmations (error prevention; the action can't be undone).**
+  A native `<dialog>` opens (with focus trap, Esc to cancel and an inert background built in).
+  Step 1 names the exact transaction; step 2 states the consequence, plus a warning when a buy
+  has later sells, and only then shows the solid red "Yes, delete permanently". In both steps
+  focus starts on the safe button, so a stray Enter cancels. Afterwards focus returns to the
+  opener, or to the table if its row is gone. The row's "Delete" button keeps its text label at
+  every width; below 1024px the date wraps instead. There's no undo, so the confirmation stands in for it.
+- **Count-up** runs once per page load, on the hero value only. Its frames are computed with
+  big.js, and it settles on the API's exact string; screen readers get only the final value.
+- **First-entry celebration** is once per browser (`localStorage`), not per account: a second
+  account on the same browser won't see it.
+- **Animations are CSS-only** (draw-in mask, sparkles, springs) and collapse to their final
+  state under `prefers-reduced-motion`.
+- **Not done yet:** a Hebrew UI. The font supports it; the strings table and RTL rendering
+  still need work (see M5.6).
+- **Theme colours appear in three places:** `index.css` (`--bg`), `src/theme.ts` and the
+  pre-paint script in `index.html`. Changing them changes the script's CSP hash, which the
+  build check (`npm run check:csp`) catches.

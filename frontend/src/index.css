@@ -1,36 +1,103 @@
 /* ============================================================================================
+   Fonts: Rubik variable (SIL OFL 1.1, see /fonts/OFL.txt), self-hosted so font-src 'self' covers
+   it. The Hebrew face downloads only when Hebrew characters appear (unicode-range).
+   ============================================================================================ */
+@font-face {
+  font-family: 'Rubik';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 900;
+  src: url('/fonts/rubik-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Rubik';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 900;
+  src: url('/fonts/rubik-hebrew-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+
+/* ============================================================================================
    Design tokens. Components use these only; no colour literals below the token blocks.
-   Every text/background pair here was checked for WCAG contrast >= 4.5:1 (see M5.6 report).
+   Every text/background pair was checked for WCAG contrast >= 4.5:1 in both themes (M5.7).
+   Accent hues (violet, coral, cyan, sunny) decorate chips, tags and illustrations only; numbers
+   use text, gain or loss colours. Red means loss or danger (destructive actions, errors), never
+   decoration; green means gain only.
    The pre-paint script in index.html sets data-theme before first paint.
    ============================================================================================ */
 :root {
-  --bg: #f4f6fa;
+  --bg: #f7f5ff;
   --surface: #ffffff;
-  --surface-2: #eef1f6;
-  --border: #e3e7ee;
-  --text: #0f172a;
-  --text-muted: #566072;
+  --surface-2: #f2effb;
+  --border: #e6e1f5;
+  --text: #1a1433;
+  --text-muted: #5b5375;
   --accent: #4f46e5;
   --accent-strong: #4f46e5;
   --accent-strong-hover: #4338ca;
-  --accent-soft: #e8e7fd;
+  --accent-soft: #e9e6ff;
   --on-accent: #ffffff;
-  --gain: #0a7a3d;
+  --gain: #087538;
   --loss: #c81e3a;
-  --loss-soft: #fdecef;
+  /* Danger = destructive actions and errors. Same red as loss on purpose (the convention users
+     already know), but a separate token so "loss" and "danger" can diverge later. */
+  --danger: #c81e3a;
+  --danger-soft: #fdecef;
+  /* Solid destructive button: white text 5.67:1 (hover 7.42:1). */
+  --danger-strong: #c81e3a;
+  --danger-strong-hover: #a8172f;
+  --on-danger: #ffffff;
+  --backdrop: rgb(26 20 51 / 0.45);
   --warn-text: #8a3c00;
-  --warn-bg: #fff4e5;
-  --warn-border: #f0a14a;
-  --tag-stock-text: #0b5cad;
-  --tag-stock-bg: #e6f0fb;
-  --tag-crypto-text: #6d28d9;
-  --tag-crypto-bg: #f1ebff;
-  --hero-a: #eef0ff;
-  --hero-b: #eaf6f9;
-  --skeleton: #e6e9ef;
-  --skeleton-shine: #f4f6fa;
-  --shadow-1: 0 1px 2px rgb(15 23 42 / 0.05), 0 2px 8px rgb(15 23 42 / 0.05);
-  --shadow-2: 0 4px 12px rgb(15 23 42 / 0.08), 0 12px 32px rgb(15 23 42 / 0.08);
+  --warn-bg: #fff2df;
+  --warn-border: #f2a65a;
+
+  --violet-text: #6527c9;
+  --violet-bg: #efe7ff;
+  --violet-fill: #8b5cf6;
+  --coral-text: #a63a17;
+  --coral-bg: #ffe6dc;
+  --coral-fill: #ff8a65;
+  --cyan-text: #0b6680;
+  --cyan-bg: #dbf2f8;
+  --cyan-fill: #22b8d8;
+  --sunny-text: #6e4a00;
+  --sunny-bg: #fff1c4;
+  --sunny-fill: #ffc53d;
+
+  --tag-stock-text: var(--cyan-text);
+  --tag-stock-bg: var(--cyan-bg);
+  --tag-crypto-text: var(--violet-text);
+  --tag-crypto-bg: var(--violet-bg);
+
+  /* Warm violet -> peach -> sunny band behind the header and hero. */
+  --hero-a: #ece6ff;
+  --hero-b: #ffe4da;
+  --hero-c: #fff1c4;
+
+  /* Ledgie, the mascot */
+  --mascot-cover: #7c5cf0;
+  --mascot-spine: #5b3fd1;
+  --mascot-pages: #fff8e8;
+  --mascot-label: #efe7ff;
+  --mascot-ink: #1a1433;
+  --mascot-shine: #ffffff;
+  --mascot-cheek: #ff9bb0;
+  --mascot-ribbon: #ff7a59;
+  --mascot-limb: #5b3fd1;
+  --mascot-shadow: rgb(26 20 51 / 0.12);
+
+  --skeleton: #ece8f8;
+  --skeleton-shine: #fbf9ff;
+  --skeleton-tint: #ffe9df;
+  --shadow-1: 0 1px 2px rgb(39 23 94 / 0.06), 0 4px 14px rgb(39 23 94 / 0.06);
+  --shadow-2: 0 6px 18px rgb(39 23 94 / 0.1), 0 18px 40px rgb(39 23 94 / 0.08);
+  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 5px var(--accent);
 
   /* Allocation donut: validated for ring-adjacent pairs on this card surface (M5, re-run M5.6). */
   --series-1: #2a78d6;
@@ -40,14 +107,15 @@
   --series-5: #e87ba4;
   --series-other: #8f8f8a;
 
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font: 'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --text-xs: 0.75rem; /* 12px: secondary labels only */
   --text-sm: 0.875rem; /* 14px: smallest size for data */
   --text-md: 1rem;
   --text-lg: 1.25rem;
   --text-xl: 1.5rem;
   --text-2xl: 2rem;
-  --hero-size: clamp(2rem, 5vw + 1rem, 2.75rem);
+  --hero-size: clamp(2.25rem, 6vw + 1rem, 3.25rem);
+  --weight-chunky: 800;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -57,48 +125,84 @@
   --space-8: 2rem;
   --space-12: 3rem;
 
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
   --radius-pill: 999px;
 
   --touch: 44px;
   --nav-height: 64px;
-  --duration-fast: 150ms;
-  --duration-theme: 200ms;
+  --duration-fast: 160ms;
+  --duration-theme: 220ms;
+  /* Slight overshoot: the "springy" feel for toggles, tabs and presses. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   color-scheme: light;
 }
 
+/* Dark is its own design, not an inversion: a violet night with the same friendly accents,
+   each stepped to stay readable (and playful) on dark surfaces. */
 :root[data-theme='dark'] {
-  --bg: #0b0e14;
-  --surface: #141923;
-  --surface-2: #1b2130;
-  --border: #262d3d;
-  --text: #e8ecf3;
-  --text-muted: #9ba5b7;
-  --accent: #8f88ff;
+  --bg: #0f0d1f;
+  --surface: #1a1730;
+  --surface-2: #242040;
+  --border: #2f2a50;
+  --text: #f2efff;
+  --text-muted: #aaa3c8;
+  --accent: #a39cff;
   /* Button fill: white text on it is 4.60:1. Recompute contrast before changing this pair. */
   --accent-strong: #6a5ff5;
   --accent-strong-hover: #5b50e8;
-  --accent-soft: #25234a;
+  --accent-soft: #2d2758;
   --on-accent: #ffffff;
   --gain: #3fd68a;
   --loss: #ff7a88;
-  --loss-soft: #3a1820;
+  --danger: #ff7a88;
+  --danger-soft: #3a1820;
+  /* White on this red is only 2.50:1, so the dark theme uses ink text: 7.04:1 (hover 8.74:1). */
+  --danger-strong: #ff7a88;
+  --danger-strong-hover: #ff9aa5;
+  --on-danger: #1a1433;
+  --backdrop: rgb(5 4 15 / 0.7);
   --warn-text: #ffc078;
-  --warn-bg: #2a1e0f;
+  --warn-bg: #2e2010;
   --warn-border: #a8641c;
-  --tag-stock-text: #8cc4ff;
-  --tag-stock-bg: #16263a;
-  --tag-crypto-text: #c4b0ff;
-  --tag-crypto-bg: #241c3d;
-  --hero-a: #171b33;
-  --hero-b: #121f26;
-  --skeleton: #1f2533;
-  --skeleton-shine: #2a3142;
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
+
+  --violet-text: #cbb8ff;
+  --violet-bg: #2e2356;
+  --violet-fill: #a78bfa;
+  --coral-text: #ffad92;
+  --coral-bg: #3d2421;
+  --coral-fill: #ff8a65;
+  --cyan-text: #72d5ec;
+  --cyan-bg: #123341;
+  --cyan-fill: #38c9e6;
+  --sunny-text: #ffd56e;
+  --sunny-bg: #3a2f10;
+  --sunny-fill: #ffc53d;
+
+  --hero-a: #2b1f5e;
+  --hero-b: #3a1f45;
+  --hero-c: #1c2c44;
+
+  --mascot-cover: #8f74ff;
+  --mascot-spine: #6a4fe6;
+  --mascot-pages: #fff3d6;
+  --mascot-label: #3b2f73;
+  --mascot-ink: #1a1433;
+  --mascot-shine: #ffffff;
+  --mascot-cheek: #ff9bb0;
+  --mascot-ribbon: #ff8a65;
+  --mascot-limb: #a78bfa;
+  --mascot-shadow: rgb(0 0 0 / 0.35);
+
+  --skeleton: #242040;
+  --skeleton-shine: #332d5c;
+  --skeleton-tint: #3b2547;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.45), 0 4px 14px rgb(9 6 26 / 0.5);
+  --shadow-2: 0 10px 28px rgb(9 6 26 / 0.65);
+  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 5px var(--accent);
 
   --series-1: #3987e5;
   --series-2: #d95926;
@@ -125,9 +229,12 @@ body {
   font-size: var(--text-md);
   line-height: 1.5;
   color: var(--text);
-  /* Soft gradient band behind the header and summary, fading into the page colour. */
+  /* Warm gradient band behind the header and hero. The diagonal carries the colour; the vertical
+     layer on top fades every column into the page colour, so the band has no hard bottom edge. */
   background:
-    linear-gradient(180deg, var(--hero-a), var(--hero-b) 70%, var(--bg)) top / 100% 26rem no-repeat,
+    linear-gradient(180deg, transparent 45%, var(--bg) 100%) top / 100% 30rem no-repeat,
+    linear-gradient(160deg, var(--hero-a) 0%, var(--hero-b) 55%, var(--hero-c) 100%) top / 100% 30rem
+      no-repeat,
     var(--bg);
   -webkit-font-smoothing: antialiased;
 }
@@ -166,7 +273,7 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
@@ -210,10 +317,11 @@ a {
   color: var(--warn-text);
 }
 
+/* Errors use the conventional red so they're recognised at a glance (informative feedback). */
 .form-error {
-  color: var(--loss);
+  color: var(--danger);
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .unit {
@@ -291,11 +399,16 @@ a {
 .brand-mark {
   display: inline-grid;
   place-items: center;
-  inline-size: 32px;
-  block-size: 32px;
+  inline-size: 36px;
+  block-size: 36px;
   border-radius: var(--radius-md);
-  background: var(--accent-strong);
-  color: var(--on-accent);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-fast) var(--ease-spring);
+}
+
+.brand:hover .brand-mark {
+  transform: rotate(-8deg) scale(1.06);
 }
 
 .header-actions {
@@ -303,10 +416,20 @@ a {
   align-items: center;
   gap: var(--space-3);
   margin-inline-start: auto;
+  /* Only the email may shrink (with an ellipsis); brand, tabs and toggle keep their size. */
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+.brand,
+.top-nav,
+.segmented {
+  flex: none;
 }
 
 .user-email {
   display: none;
+  min-inline-size: 0;
   font-size: var(--text-sm);
   color: var(--text-muted);
   max-inline-size: 16rem;
@@ -333,7 +456,8 @@ a {
   text-decoration: none;
   transition:
     background-color var(--duration-fast) ease,
-    color var(--duration-fast) ease;
+    color var(--duration-fast) ease,
+    transform 300ms var(--ease-spring);
 }
 
 .top-nav a:hover {
@@ -371,6 +495,7 @@ a {
 }
 
 .segmented {
+  position: relative;
   display: inline-flex;
   padding: 3px;
   gap: 2px;
@@ -379,7 +504,42 @@ a {
   border-radius: var(--radius-pill);
 }
 
+/* A single thumb springs between the three options; its position comes from data-active. */
+.segmented-thumb {
+  position: absolute;
+  inset-block: 3px;
+  inset-inline-start: 3px;
+  inline-size: var(--touch);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: transform 380ms var(--ease-spring);
+}
+
+.segmented[data-active='-1'] .segmented-thumb {
+  opacity: 0;
+}
+
+.segmented[data-active='1'] .segmented-thumb {
+  transform: translateX(calc(var(--touch) + 2px));
+}
+
+.segmented[data-active='2'] .segmented-thumb {
+  transform: translateX(calc(2 * (var(--touch) + 2px)));
+}
+
+/* transform isn't a logical property, so mirror the travel for right-to-left layouts. */
+:dir(rtl) .segmented[data-active='1'] .segmented-thumb {
+  transform: translateX(calc(-1 * (var(--touch) + 2px)));
+}
+
+:dir(rtl) .segmented[data-active='2'] .segmented-thumb {
+  transform: translateX(calc(-2 * (var(--touch) + 2px)));
+}
+
 .segmented button {
+  position: relative;
+  z-index: 1;
   display: inline-grid;
   place-items: center;
   inline-size: var(--touch);
@@ -400,9 +560,11 @@ a {
 }
 
 .segmented button[aria-pressed='true'] {
-  background: var(--surface);
   color: var(--accent);
-  box-shadow: var(--shadow-1);
+}
+
+.segmented button:active {
+  transform: scale(0.9);
 }
 
 /* ============================================================================================
@@ -429,8 +591,8 @@ a {
 
 .hero-value {
   font-size: var(--hero-size);
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: var(--weight-chunky);
+  letter-spacing: -0.03em;
   line-height: 1.1;
   text-align: start;
 }
@@ -458,16 +620,53 @@ a {
 .stat {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   padding: var(--space-4);
   transition:
-    transform var(--duration-fast) ease,
+    transform 260ms var(--ease-spring),
     box-shadow var(--duration-fast) ease;
 }
 
 .stat:hover {
-  transform: translateY(-1px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-2);
+}
+
+.stat-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+/* Decorative icon chips: the only place the accent hues meet the numbers' cards. */
+.chip-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: var(--radius-sm);
+}
+
+.chip-violet {
+  background: var(--violet-bg);
+  color: var(--violet-text);
+}
+
+.chip-cyan {
+  background: var(--cyan-bg);
+  color: var(--cyan-text);
+}
+
+.chip-sunny {
+  background: var(--sunny-bg);
+  color: var(--sunny-text);
+}
+
+.chip-coral {
+  background: var(--coral-bg);
+  color: var(--coral-text);
 }
 
 .stat-label {
@@ -480,7 +679,8 @@ a {
 
 .stat-value {
   font-size: var(--text-lg);
-  font-weight: 700;
+  font-weight: var(--weight-chunky);
+  letter-spacing: -0.01em;
   text-align: start;
   overflow-wrap: anywhere;
 }
@@ -692,6 +892,18 @@ a {
   white-space: normal;
 }
 
+/* In a half-width card column the "(%)" may wrap to a second line; escaping the card would be
+   worse. Inline layout leaves no break between the arrow and the amount, so they stay together. */
+.detail .trend {
+  display: inline;
+  white-space: normal;
+}
+
+.detail .trend svg {
+  vertical-align: -2px;
+  margin-inline-end: 2px;
+}
+
 /* ============================================================================================
    Allocation donut
    ============================================================================================ */
@@ -790,9 +1002,9 @@ a {
   min-block-size: var(--touch);
   padding-inline: var(--space-4);
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
   transition:
@@ -829,20 +1041,19 @@ a {
   background: var(--accent-soft);
 }
 
+/* Red signals a destructive action before it's clicked (a signifier users already know), and
+   the text label stays visible at every width so the action is never icon-only guesswork. */
 .button-danger-ghost {
-  inline-size: var(--touch);
-  padding-inline: 0;
+  padding-inline: var(--space-3);
   background: transparent;
-  color: var(--loss);
+  color: var(--danger);
+  white-space: nowrap;
 }
 
 .button-danger-ghost:hover:not(:disabled) {
-  background: var(--loss-soft);
+  background: var(--danger-soft);
 }
 
-.button-danger-ghost .button-text {
-  display: none;
-}
 
 .button-block {
   inline-size: 100%;
@@ -1004,10 +1215,19 @@ input.num {
    ============================================================================================ */
 .skeleton {
   display: block;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, var(--skeleton) 0%, var(--skeleton-shine) 50%, var(--skeleton) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-pill);
+  /* Playful shimmer: a warm tint rides along with the highlight. */
+  background: linear-gradient(
+    100deg,
+    var(--skeleton) 0%,
+    var(--skeleton) 30%,
+    var(--skeleton-tint) 42%,
+    var(--skeleton-shine) 50%,
+    var(--skeleton) 62%,
+    var(--skeleton) 100%
+  );
+  background-size: 250% 100%;
+  animation: shimmer 1.6s var(--ease-out) infinite;
 }
 
 .skeleton-ring {
@@ -1054,11 +1274,7 @@ input.num {
 .empty-art {
   display: grid;
   place-items: center;
-  inline-size: 80px;
-  block-size: 80px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  animation: bob 3.2s ease-in-out infinite;
 }
 
 /* ============================================================================================
@@ -1176,14 +1392,6 @@ input.num {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .button-danger-ghost {
-    inline-size: auto;
-    padding-inline: var(--space-3);
-  }
-
-  .button-danger-ghost .button-text {
-    display: inline;
-  }
 
   .donut {
     justify-content: flex-start;
@@ -1191,6 +1399,10 @@ input.num {
 }
 
 @media (min-width: 1024px) {
+  .data-table .date-cell {
+    white-space: nowrap;
+  }
+
   .stat-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1213,6 +1425,483 @@ input.num {
 }
 
 /* ============================================================================================
+   Personality (M5.7): Ledgie the mascot, sparkles, celebration, draw-ins and lifts.
+   Every animation here ends in a sensible still state, so the reduced-motion rules below (which
+   collapse animations to their end state) leave a complete, static UI.
+   ============================================================================================ */
+.ledgie {
+  display: block;
+  overflow: visible;
+}
+
+.lg-cover {
+  fill: var(--mascot-cover);
+}
+
+.lg-spine {
+  fill: var(--mascot-spine);
+}
+
+.lg-pages {
+  fill: var(--mascot-pages);
+}
+
+.lg-label {
+  fill: var(--mascot-label);
+}
+
+.lg-ribbon {
+  fill: var(--mascot-ribbon);
+}
+
+.lg-ink {
+  fill: var(--mascot-ink);
+}
+
+.lg-shine {
+  fill: var(--mascot-shine);
+}
+
+.lg-cheek {
+  fill: var(--mascot-cheek);
+  opacity: 0.75;
+}
+
+.lg-smile {
+  fill: var(--mascot-ink);
+  stroke: var(--mascot-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ledgie-wave .lg-smile,
+.ledgie-coin .lg-smile,
+.ledgie-page .lg-smile,
+.ledgie-mark .lg-smile {
+  fill: none;
+}
+
+.lg-limb {
+  stroke: var(--mascot-limb);
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+
+.lg-foot {
+  fill: var(--mascot-spine);
+}
+
+.lg-shadow {
+  fill: var(--mascot-shadow);
+}
+
+.lg-coin {
+  fill: var(--sunny-fill);
+}
+
+.lg-coin-rim {
+  fill: none;
+  stroke: var(--mascot-cover);
+  stroke-opacity: 0.35;
+  stroke-width: 2.5;
+}
+
+.lg-coin-shine {
+  fill: none;
+  stroke: var(--mascot-shine);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.lg-coin-group {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: coin-flip 4.5s var(--ease-out) infinite;
+}
+
+.lg-sheet {
+  fill: var(--mascot-pages);
+  stroke: var(--mascot-spine);
+  stroke-width: 2;
+}
+
+.lg-sheet-line {
+  stroke: var(--violet-fill);
+  stroke-opacity: 0.45;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.ledgie-wave line:last-of-type {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  animation: wave 2.4s ease-in-out infinite;
+}
+
+.sparkles {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  pointer-events: none;
+}
+
+.sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: twinkle 2.6s ease-in-out infinite;
+}
+
+.sparkle-violet {
+  fill: var(--violet-fill);
+}
+
+.sparkle-sunny {
+  fill: var(--sunny-fill);
+}
+
+.sparkle-coral {
+  fill: var(--coral-fill);
+}
+
+.sparkle-cyan {
+  fill: var(--cyan-fill);
+}
+
+.sparkle-1 {
+  animation-delay: 0.4s;
+}
+
+.sparkle-2 {
+  animation-delay: 0.9s;
+}
+
+.sparkle-3 {
+  animation-delay: 1.3s;
+}
+
+.sparkle-4 {
+  animation-delay: 1.8s;
+}
+
+/* Login hero */
+.auth-hero {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: calc(var(--space-8) * -1) calc(var(--space-6) * -1) 0;
+  padding-block: var(--space-6) var(--space-2);
+  border-start-start-radius: var(--radius-lg);
+  border-start-end-radius: var(--radius-lg);
+  background: linear-gradient(150deg, var(--hero-a), var(--hero-b) 60%, var(--hero-c));
+}
+
+.auth-hero .ledgie {
+  animation: bob 3.2s ease-in-out infinite;
+}
+
+/* First-entry celebration */
+.celebration {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-color: var(--violet-fill);
+  background: linear-gradient(120deg, var(--violet-bg), var(--surface) 55%, var(--sunny-bg));
+  animation: pop-in 520ms var(--ease-spring) both;
+}
+
+.celebration-art {
+  position: relative;
+  flex: none;
+  inline-size: 104px;
+  block-size: 96px;
+  display: grid;
+  place-items: center;
+}
+
+.celebration-art .ledgie {
+  animation: hop 900ms var(--ease-spring) 2;
+}
+
+.celebration-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.celebration-text strong {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-chunky);
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--touch);
+  block-size: var(--touch);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.icon-button:hover {
+  background: var(--surface-2);
+}
+
+/* Donut draw-in: the mask's stroke sweeps from nothing to a full ring, once. */
+.donut-reveal {
+  stroke-dasharray: 100 100;
+  animation: donut-reveal 900ms var(--ease-out) both;
+}
+
+/* Lift and spring */
+.holding-card {
+  transition:
+    transform 260ms var(--ease-spring),
+    box-shadow var(--duration-fast) ease;
+}
+
+.holding-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-2);
+}
+
+.button {
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    transform 260ms var(--ease-spring),
+    box-shadow var(--duration-fast) ease;
+}
+
+.button-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+}
+
+.button:active:not(:disabled),
+.top-nav a:active,
+.bottom-nav a:active {
+  transform: scale(0.96);
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes wave {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(-14deg);
+  }
+  40% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes coin-flip {
+  0%,
+  70%,
+  100% {
+    transform: scaleX(1);
+  }
+  80% {
+    transform: scaleX(0.15);
+  }
+  90% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-14px) rotate(-4deg);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes donut-reveal {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+
+/* ============================================================================================
+   Destructive actions and the two-step delete confirmation
+   ============================================================================================ */
+/* Below 1024px the date wraps onto two lines so the table (with its visible "Delete" label)
+   fits its card at tablet width instead of clipping the last column. */
+@media (max-width: 1023px) {
+  .data-table .date-cell {
+    white-space: normal;
+    min-inline-size: 7.5rem;
+  }
+}
+
+.button-secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.button-secondary:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.button-danger-outline {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.button-danger-outline:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.button-danger {
+  background: var(--danger-strong);
+  color: var(--on-danger);
+  box-shadow: var(--shadow-1);
+}
+
+.button-danger:hover:not(:disabled) {
+  background: var(--danger-strong-hover);
+}
+
+/* .card sets its own positioning; a modal must stay pinned to the viewport while the page scrolls. */
+.confirm-dialog {
+  position: fixed;
+  inline-size: min(28rem, calc(100vw - 2 * var(--space-4)));
+  max-block-size: calc(100vh - 2 * var(--space-4));
+  padding: var(--space-6);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  animation: pop-in 260ms var(--ease-spring) both;
+}
+
+.confirm-dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.confirm-dialog h2 {
+  margin-block: var(--space-1) var(--space-3);
+}
+
+.confirm-icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.confirm-step {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.confirm-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.confirm-summary {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.confirm-warning {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.confirm-warning svg {
+  flex: none;
+  margin-block-start: 2px;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-6);
+}
+
+@media (max-width: 479px) {
+  .confirm-actions {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-actions .button {
+    inline-size: 100%;
+  }
+}
+
+/* ============================================================================================
    Reduced motion: no shimmer, lifts or animated theme changes.
    ============================================================================================ */
 @media (prefers-reduced-motion: reduce) {
@@ -1225,7 +1914,9 @@ input.num {
     scroll-behavior: auto !important;
   }
 
-  .stat:hover {
+  .stat:hover,
+  .holding-card:hover,
+  .brand:hover .brand-mark {
     transform: none;
   }
 }

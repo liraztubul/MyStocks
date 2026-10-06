@@ -12,6 +12,11 @@ const PATHS = {
   down: 'M12 5v14M6 13l6 6 6-6',
   logo: 'M3 17l5-5 4 4 8-8M15 8h5v5',
   alert: 'M12 9v4M12 17h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z',
+  wallet: 'M3 7a2 2 0 0 1 2-2h12v4M3 7v10a2 2 0 0 0 2 2h14V9H5a2 2 0 0 1-2-2ZM16 14h.01',
+  chart: 'M4 19V5M4 19h16M8 15l3-4 3 2 5-6',
+  check: 'M20 6 9 17l-5-5',
+  clock: 'M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z',
+  close: 'M6 6l12 12M18 6 6 18',
 } as const
 
 export type IconName = keyof typeof PATHS

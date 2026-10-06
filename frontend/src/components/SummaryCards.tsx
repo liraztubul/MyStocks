@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import type { PortfolioSummary } from '../api/portfolio'
 import { t } from '../strings'
+import { CountUp } from './CountUp'
 import { basisLabel } from './dayChangeLabels'
 import { formatMoney, formatSignedMoney, formatSignedPercent } from './format'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 import { Trend } from './Trend'
 
 function dayChangeBasisText(summary: PortfolioSummary): string {
@@ -18,7 +19,8 @@ export function SummaryCards({ summary }: { summary: PortfolioSummary }) {
       <div className="hero">
         <div className="hero-label">{t.summary.marketValue}</div>
         <div className="hero-value num">
-          {formatMoney(summary.total_market_value)} <span className="unit">{t.common.usd}</span>
+          <CountUp id="hero-market-value" value={summary.total_market_value} format={formatMoney} />{' '}
+          <span className="unit">{t.common.usd}</span>
         </div>
         {summary.total_day_change !== null && (
           <div className="hero-change">
@@ -36,9 +38,13 @@ export function SummaryCards({ summary }: { summary: PortfolioSummary }) {
         )}
       </div>
       <div className="stat-grid">
-        <Stat label={t.summary.costBasis}>{formatMoney(summary.total_cost_basis)}</Stat>
+        <Stat label={t.summary.costBasis} icon="wallet" tone="violet">
+          {formatMoney(summary.total_cost_basis)}
+        </Stat>
         <Stat
           label={t.summary.unrealized}
+          icon="chart"
+          tone="cyan"
           detail={
             summary.total_unrealized_pl_pct !== null && (
               <Trend
@@ -51,11 +57,13 @@ export function SummaryCards({ summary }: { summary: PortfolioSummary }) {
         >
           <Trend value={summary.total_unrealized_pl} text={formatSignedMoney(summary.total_unrealized_pl)} size={18} />
         </Stat>
-        <Stat label={t.summary.realized}>
+        <Stat label={t.summary.realized} icon="check" tone="sunny">
           <Trend value={summary.total_realized_pl} text={formatSignedMoney(summary.total_realized_pl)} size={18} />
         </Stat>
         <Stat
           label={t.summary.dayChange}
+          icon="clock"
+          tone="coral"
           detail={
             summary.total_day_change !== null && (
               <>
@@ -90,10 +98,30 @@ export function SummaryCards({ summary }: { summary: PortfolioSummary }) {
   )
 }
 
-function Stat({ label, detail, children }: { label: string; detail?: ReactNode; children: ReactNode }) {
+// Accent hues only decorate the icon chip; the number itself stays text, gain or loss coloured.
+type Tone = 'violet' | 'cyan' | 'sunny' | 'coral'
+
+function Stat({
+  label,
+  icon,
+  tone,
+  detail,
+  children,
+}: {
+  label: string
+  icon: IconName
+  tone: Tone
+  detail?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="card stat">
-      <div className="stat-label">{label}</div>
+      <div className="stat-head">
+        <span className={`chip-icon chip-${tone}`} aria-hidden="true">
+          <Icon name={icon} size={18} />
+        </span>
+        <span className="stat-label">{label}</span>
+      </div>
       <div className="stat-value num">
         {children}
         {children !== t.common.noValue && <span className="unit"> {t.common.usd}</span>}

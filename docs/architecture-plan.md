@@ -33,6 +33,14 @@ Living reference for whoever (Claude Code included) picks up work on this repo. 
   - **CSP:** strict, with a SHA-256 for the inline theme script; drift is checked inside the Vercel build command and in CI.
   - **Backups:** daily `pg_dump` → gpg AES256 → 14-day artifact; restore tested.
   - **CD:** Render `checksPass`; Vercel Deployment Checks (CLI fallback documented).
+- Personality layer (M5.7):
+  - **Tokens:** redesigned in both themes. The light theme is warm violet→peach→sunny; dark is its own violet-night set, not an inversion. Every text pair is ≥4.5:1, and the light gain colour was darkened to `#087538` to clear the warmer gradient. The donut palette was re-validated on the new dark card `#1a1730` and is unchanged.
+  - **Colour rules:** accent hues are only for chips, tags and illustrations. Green means gain; red means loss or danger (Delete and errors use a separate `--danger` token, following Norman/Shneiderman conventions); neither is decorative.
+  - **Destructive actions:** deleting a transaction goes through a two-step native `<dialog>` confirmation. Focus starts on the safe button, the step that deletes uses solid `--danger-strong`, and a buy with later sells gets a warning. The Delete label is visible at every width.
+  - **Font:** Rubik variable, self-hosted (Latin and Hebrew faces, OFL).
+  - **Mascot:** Ledgie, an original inline-SVG notebook. It is `aria-hidden` and coloured via CSS classes, never inline styles, so the CSP stays strict.
+  - **Motion:** a big.js count-up once per load; a single SVG mask for the donut draw-in; a CSS-only springy theme thumb (data attribute, RTL-mirrored); playful shimmer. All of it is reduced-motion safe.
+  - **Celebration:** a one-time first-entry celebration (0→1 in the session plus a `localStorage` flag), never tied to P/L.
 - Oversell validation: replays a symbol's trade history in `executed_at` order (buys before sells at the same timestamp), not just a final-totals comparison — catches backdated sells. See `backend/app/domain/holdings.py`. Writes are serialized per-user via `SELECT ... FOR UPDATE` on the user row.
 
 ## Repo structure
@@ -61,6 +69,7 @@ MyStocks/
 | M5 | Portfolio dashboard | Done, verified live in browser |
 | M5.6 | Visual redesign (tokens, theming, mobile-first, a11y) | Done, verified in browser |
 | M5.5 | Free-tier production deploy (Vercel + Render + Neon) | Built and tested locally; live verification pending |
+| M5.7 | Personality pass (mascot, warm tokens, Rubik, motion, first-entry celebration) | Done, verified in browser |
 | M6 | Price chart (+ replace hash navigation with a router) | Next |
 | M7 | Polish + deploy | Not started |
 

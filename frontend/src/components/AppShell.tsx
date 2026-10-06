@@ -3,6 +3,7 @@ import type { User } from '../api/auth'
 import type { Route } from '../hooks/useHashRoute'
 import { t } from '../strings'
 import { Icon, type IconName } from './Icon'
+import { Ledgie } from './Ledgie'
 import { ServerWakeNotice } from './ServerWakeNotice'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -31,7 +32,7 @@ export function AppShell({ user, route, children }: { user: User; route: Route; 
         <div className="container header-row">
           <a href="#/" className="brand">
             <span className="brand-mark" aria-hidden="true">
-              <Icon name="logo" size={20} />
+              <Ledgie pose="mark" size={30} />
             </span>
             {t.appName}
           </a>
