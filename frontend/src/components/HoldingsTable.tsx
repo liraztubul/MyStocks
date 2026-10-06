@@ -127,6 +127,7 @@ export function HoldingsTable({ onSell }: { onSell: (holding: Holding) => void }
         ))}
       </ul>
       <p className="hint">{t.holdings.footnote}</p>
+      {holdings.some((h) => h.coin_auto_picked) && <p className="hint">{t.holdings.autoPickedNote}</p>}
     </>
   )
 }
@@ -147,9 +148,15 @@ function SellButton({ holding, onSell }: { holding: Holding; onSell: (holding: H
 
 function SymbolCell({ holding: h }: { holding: Holding }) {
   return (
-    <span className="symbol-cell">
-      <span className="symbol">{h.symbol}</span>
-      <span className={`tag tag-${h.asset_type}`}>{h.asset_type}</span>
+    <span className="symbol-stack">
+      <span className="symbol-cell">
+        <span className="symbol">{h.symbol}</span>
+        <span className={`tag tag-${h.asset_type}`}>{h.asset_type}</span>
+      </span>
+      {/* Never a silent guess: say which coin was chosen for the user. */}
+      {h.coin_auto_picked && (
+        <span className="sub coin-note">{t.holdings.autoPicked(h.coin_name ?? h.coin_id ?? h.symbol)}</span>
+      )}
     </span>
   )
 }

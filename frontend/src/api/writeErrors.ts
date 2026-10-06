@@ -19,6 +19,8 @@ export function writeErrorMessage(error: Error): string {
   if (isNotAvailableOnDeployment(error)) return t.stockData.notAvailable
   switch (error.status) {
     case 400:
+    // 409: the symbol already means another asset type or coin; 422: pick the coin.
+    case 409:
     case 422:
       return t.writeErrors.rejected(error.message)
     case 403:

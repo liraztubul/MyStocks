@@ -13,7 +13,7 @@ from app.domain.enums import AssetType, Side
 AMOUNT = Numeric(28, 10, asdecimal=True)
 
 
-def _str_enum(enum_cls: type[AssetType] | type[Side], name: str) -> Enum:
+def str_enum(enum_cls: type[AssetType] | type[Side], name: str) -> Enum:
     # VARCHAR + CHECK instead of a native Postgres ENUM: adding a value later (e.g. "etf")
     # is then a plain constraint swap rather than an ALTER TYPE.
     return Enum(
@@ -39,8 +39,8 @@ class Transaction(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     symbol: Mapped[str] = mapped_column(String(32))
-    asset_type: Mapped[AssetType] = mapped_column(_str_enum(AssetType, "asset_type"))
-    side: Mapped[Side] = mapped_column(_str_enum(Side, "side"))
+    asset_type: Mapped[AssetType] = mapped_column(str_enum(AssetType, "asset_type"))
+    side: Mapped[Side] = mapped_column(str_enum(Side, "side"))
     quantity: Mapped[Decimal] = mapped_column(AMOUNT)
     price: Mapped[Decimal] = mapped_column(AMOUNT)
     fee: Mapped[Decimal] = mapped_column(AMOUNT, default=Decimal(0), server_default="0")

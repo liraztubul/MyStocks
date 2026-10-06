@@ -1,16 +1,21 @@
 import uuid
+from collections.abc import Callable
 
 from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.errors import CodedHTTPError
 from app.core.security import CurrentUser
 from app.db.models import Transaction, User
 from app.db.session import DbSession
 from app.domain.enums import Side
 from app.domain.holdings import find_oversell
+from app.market_data.access import UserMarketDataDep
+from app.market_data.provider import MarketDataError
 from app.schemas.decimal import format_decimal
 from app.schemas.transaction import TransactionCreate, TransactionRead, TransactionUpdate
+from app.services.asset_identity import ensure_asset_identity
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -60,10 +65,27 @@ def _commit_if_valid(db: Session, user_id: uuid.UUID, symbols: set[str]) -> None
     db.commit()
 
 
+def _ensure_identity(db: Session, check: Callable[[], None]) -> None:
+    # Runs with the ledger locked; a refused identity must leave nothing half-written.
+    try:
+        check()
+    except (CodedHTTPError, MarketDataError):
+        db.rollback()
+        raise
+
+
 @router.post("", response_model=TransactionRead, status_code=status.HTTP_201_CREATED)
-def create_transaction(body: TransactionCreate, user: CurrentUser, db: DbSession) -> Transaction:
+def create_transaction(
+    body: TransactionCreate, user: CurrentUser, db: DbSession, market_data: UserMarketDataDep
+) -> Transaction:
     _lock_ledger(db, user.id)
-    transaction = Transaction(user_id=user.id, **body.model_dump())
+    _ensure_identity(
+        db,
+        lambda: ensure_asset_identity(
+            db, market_data, user.id, body.symbol, body.asset_type, body.provider_id
+        ),
+    )
+    transaction = Transaction(user_id=user.id, **body.model_dump(exclude={"provider_id"}))
     db.add(transaction)
     # A buy can only ever add to holdings, so only sells need the ledger check.
     _commit_if_valid(db, user.id, {transaction.symbol} if body.side is Side.SELL else set())
@@ -89,12 +111,30 @@ def get_transaction(transaction_id: uuid.UUID, user: CurrentUser, db: DbSession)
 
 @router.patch("/{transaction_id}", response_model=TransactionRead)
 def update_transaction(
-    transaction_id: uuid.UUID, body: TransactionUpdate, user: CurrentUser, db: DbSession
+    transaction_id: uuid.UUID,
+    body: TransactionUpdate,
+    user: CurrentUser,
+    db: DbSession,
+    market_data: UserMarketDataDep,
 ) -> Transaction:
     _lock_ledger(db, user.id)
     transaction = _get_owned(db, user.id, transaction_id)
     old_symbol = transaction.symbol
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True, exclude={"provider_id"})
+    if {"symbol", "asset_type"} & changes.keys() or body.provider_id:
+        _ensure_identity(
+            db,
+            lambda: ensure_asset_identity(
+                db,
+                market_data,
+                user.id,
+                changes.get("symbol", transaction.symbol),
+                changes.get("asset_type", transaction.asset_type),
+                body.provider_id,
+                editing=transaction.id,
+            ),
+        )
+    for field, value in changes.items():
         setattr(transaction, field, value)
     # Any edit (a smaller buy, a later date, a new symbol) can break a sell elsewhere in the
     # history, so re-check the old symbol's ledger too when the symbol changes.

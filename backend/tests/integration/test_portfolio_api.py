@@ -15,6 +15,7 @@ from app.market_data.provider import (
     ProviderUnavailableError,
     Quote,
     ReferenceKind,
+    SymbolNotFoundError,
 )
 from app.market_data.service import MarketData, shared_market_data
 
@@ -47,6 +48,9 @@ class QuoteSource:
     def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
         if self.error:
             raise self.error
+        if symbol not in self.prices:
+            # What a real provider raises for an unknown symbol (not a bare KeyError).
+            raise SymbolNotFoundError(f"no price for {symbol}")
         reference = self.references.get(symbol)
         return Quote(
             symbol,
@@ -152,6 +156,9 @@ def test_holdings_for_the_worked_example(api: TestClient, stocks: QuoteSource) -
             "price_is_stale": False,
             "price_unavailable_reason": None,
             "price_unavailable_code": None,
+            "coin_id": None,
+            "coin_name": None,
+            "coin_auto_picked": False,
             # No reference price from the provider: day change degrades to null, not 0.
             "day_change": None,
             "day_change_pct": None,

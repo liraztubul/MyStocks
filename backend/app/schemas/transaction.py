@@ -17,6 +17,7 @@ def _normalize_symbol(symbol: str) -> str:
 
 
 NormalizedSymbol = Annotated[str, Field(max_length=32), AfterValidator(_normalize_symbol)]
+ProviderId = Annotated[str | None, Field(min_length=1, max_length=128)]
 
 
 class TransactionCreate(BaseModel):
@@ -31,6 +32,9 @@ class TransactionCreate(BaseModel):
     # USD-only until multi-currency lands; the column exists so that won't need a migration.
     currency: Literal["USD"] = "USD"
     executed_at: AwareDatetime
+    # The coin the user picked in search (CoinGecko id). Not stored on the transaction: it sets or
+    # checks the symbol's record in user_assets (see app.services.asset_identity).
+    provider_id: ProviderId = None
 
 
 class TransactionUpdate(BaseModel):
@@ -44,6 +48,7 @@ class TransactionUpdate(BaseModel):
     fee: NonNegativeAmount | None = None
     currency: Literal["USD"] | None = None
     executed_at: AwareDatetime | None = None
+    provider_id: ProviderId = None
 
     @model_validator(mode="after")
     def _no_explicit_nulls(self) -> "TransactionUpdate":

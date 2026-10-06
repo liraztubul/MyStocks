@@ -70,6 +70,8 @@ export function TransactionForm() {
         fee: form.fee,
         // datetime-local has no zone; interpret it in the browser's zone and send UTC.
         executed_at: new Date(form.executed_at).toISOString(),
+        // Which coin a crypto ticker means, when picked from search; a stock's ticker is its id.
+        provider_id: form.asset_type === 'crypto' ? form.provider_id : null,
       },
       { onSuccess: () => setForm({ ...EMPTY_FORM, asset_type: form.asset_type }) },
     )

@@ -25,6 +25,8 @@ export interface TransactionInput {
   price: string
   fee: string
   executed_at: string
+  // The coin picked in search (crypto). Omitted: the server keeps the symbol's recorded coin.
+  provider_id?: string | null
 }
 
 export function listTransactions(): Promise<Transaction[]> {

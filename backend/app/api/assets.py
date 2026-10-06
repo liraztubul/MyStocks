@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from app.domain.enums import AssetType
 from app.market_data.access import StockDataNotAvailableError, UserMarketDataDep
 from app.market_data.provider import (
+    AmbiguousSymbolError,
     MarketDataError,
     PriceOnDate,
     PriceUnavailableError,
@@ -31,6 +32,9 @@ def _status_for(exc: MarketDataError) -> int:
     # An action on data this deployment may not show (see app.market_data.access).
     if isinstance(exc, StockDataNotAvailableError):
         return status.HTTP_403_FORBIDDEN
+    # The request is fine but needs a choice from the user (which coin), not a retry.
+    if isinstance(exc, AmbiguousSymbolError):
+        return status.HTTP_422_UNPROCESSABLE_CONTENT
     if isinstance(exc, SymbolNotFoundError | PriceUnavailableError):
         return status.HTTP_404_NOT_FOUND
     # Rate limits are ours with the upstream provider, not the caller's, so 503 rather than 429.
@@ -42,11 +46,16 @@ async def market_data_error_handler(_request: Request, exc: Exception) -> JSONRe
     headers = {}
     if isinstance(exc, RateLimitedError) and exc.retry_after:
         headers["Retry-After"] = str(exc.retry_after)
-    return JSONResponse(
-        status_code=_status_for(exc),
-        content={"detail": exc.message, "code": exc.code},
-        headers=headers,
-    )
+    content: dict[str, object] = {"detail": exc.message, "code": exc.code}
+    if isinstance(exc, AmbiguousSymbolError):
+        content["candidates"] = candidates_payload(exc)
+    return JSONResponse(status_code=_status_for(exc), content=content, headers=headers)
+
+
+def candidates_payload(exc: AmbiguousSymbolError) -> list[dict[str, object]]:
+    return [
+        {"symbol": c.symbol, "name": c.name, "provider_id": c.provider_id} for c in exc.candidates
+    ]
 
 
 @router.get("/search", response_model=AssetSearchResponse)

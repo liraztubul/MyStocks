@@ -21,6 +21,10 @@ export interface Holding {
   price_unavailable_reason: string | null
   // e.g. not_available_on_deployment: shown as a neutral label, not as a provider problem.
   price_unavailable_code: string | null
+  // Crypto: the coin priced. coin_auto_picked: chosen by the coin rules, so it's disclosed.
+  coin_id: string | null
+  coin_name: string | null
+  coin_auto_picked: boolean
   day_change: string | null
   day_change_pct: string | null
   day_change_basis: DayChangeBasis | null

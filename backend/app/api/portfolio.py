@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.security import CurrentUser
-from app.db.models import Transaction
+from app.db.models import Transaction, UserAsset
 from app.db.session import DbSession
 from app.domain.daily_change import DailyChange, daily_change, total_daily_change
 from app.domain.enums import AssetType
@@ -32,6 +32,7 @@ from app.schemas.portfolio import (
     RealizedPlRead,
     RealizedSaleRead,
 )
+from app.services.asset_identity import RULE
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -70,21 +71,39 @@ def _replay(db: Session, user_id: uuid.UUID) -> tuple[list[Transaction], dict[st
         ) from exc
 
 
-def _asset_types(trades: Sequence[Transaction]) -> dict[str, AssetType]:
-    # The ledger groups by symbol alone; the latest trade's type decides which provider prices it.
+@dataclass(frozen=True)
+class AssetRef:
+    asset_type: AssetType
+    # The user's recorded coin (user_assets); None lets the provider's coin rules decide.
+    provider_id: str | None
+    # True when nobody but a rule chose the coin (recorded as "rule"), so it must be disclosed.
+    auto_picked: bool = False
+
+
+def _asset_refs(
+    db: Session, user_id: uuid.UUID, trades: Sequence[Transaction]
+) -> dict[str, AssetRef]:
+    # user_assets is the source of truth; the latest trade's type is only a fallback for a symbol
+    # without a record (it shouldn't happen: every write and the migration create one).
     latest = sorted(trades, key=lambda t: t.executed_at)
-    return {t.symbol: t.asset_type for t in latest}
+    refs = {t.symbol: AssetRef(t.asset_type, None) for t in latest}
+    for asset in db.scalars(select(UserAsset).where(UserAsset.user_id == user_id)):
+        auto = asset.id_source == RULE
+        refs[asset.symbol] = AssetRef(asset.asset_type, asset.provider_id, auto)
+    return refs
 
 
-def _fetch_price(market_data: UserMarketData, symbol: str, asset_type: AssetType) -> PriceResult:
+def _fetch_price(market_data: UserMarketData, symbol: str, ref: AssetRef) -> PriceResult:
     try:
-        return PriceResult(market_data.provider(asset_type).get_quote(symbol), None)
+        return PriceResult(
+            market_data.provider(ref.asset_type).get_quote(symbol, ref.provider_id), None
+        )
     except MarketDataError as exc:
         return PriceResult(None, exc.message, exc.code)
 
 
 def _fetch_prices(
-    market_data: UserMarketData, symbols: dict[str, AssetType]
+    market_data: UserMarketData, symbols: dict[str, AssetRef]
 ) -> dict[str, PriceResult]:
     if not symbols:
         return {}
@@ -92,8 +111,8 @@ def _fetch_prices(
     # sequence would make the whole response that many timeouts long.
     with ThreadPoolExecutor(max_workers=min(MAX_QUOTE_WORKERS, len(symbols))) as pool:
         futures = {
-            symbol: pool.submit(_fetch_price, market_data, symbol, asset_type)
-            for symbol, asset_type in symbols.items()
+            symbol: pool.submit(_fetch_price, market_data, symbol, ref)
+            for symbol, ref in symbols.items()
         }
         return {symbol: future.result() for symbol, future in futures.items()}
 
@@ -101,6 +120,7 @@ def _fetch_prices(
 @dataclass(frozen=True)
 class ValuedPortfolio:
     portfolio: Portfolio[Transaction]
+    refs: dict[str, AssetRef]
     asset_types: dict[str, AssetType]
     prices: dict[str, PriceResult]
     # Open holdings only; None where the quote had no usable reference price.
@@ -117,8 +137,9 @@ def _load_valued_portfolio(
     db: Session, user_id: uuid.UUID, market_data: UserMarketData
 ) -> ValuedPortfolio:
     trades, positions = _replay(db, user_id)
-    asset_types = _asset_types(trades)
-    open_symbols = {s: asset_types[s] for s, p in positions.items() if p.quantity > 0}
+    refs = _asset_refs(db, user_id, trades)
+    asset_types = {s: ref.asset_type for s, ref in refs.items()}
+    open_symbols = {s: refs[s] for s, p in positions.items() if p.quantity > 0}
     prices = _fetch_prices(market_data, open_symbols)
 
     def price_of(symbol: str) -> Decimal | None:
@@ -131,7 +152,9 @@ def _load_valued_portfolio(
     day_changes = {
         symbol: _day_change(by_symbol[symbol], prices[symbol].quote) for symbol in open_symbols
     }
-    return ValuedPortfolio(value_portfolio(positions, price_of), asset_types, prices, day_changes)
+    return ValuedPortfolio(
+        value_portfolio(positions, price_of), refs, asset_types, prices, day_changes
+    )
 
 
 def _day_change(trades: list[Transaction], quote: Quote | None) -> DailyChange | None:
@@ -167,6 +190,12 @@ def get_holdings(
                 price_is_stale=bool(price.quote and price.quote.is_stale),
                 price_unavailable_reason=price.error,
                 price_unavailable_code=price.error_code,
+                coin_id=price.quote.coin_id if price.quote else None,
+                coin_name=price.quote.coin_name if price.quote else None,
+                coin_auto_picked=bool(
+                    price.quote
+                    and (price.quote.coin_auto_picked or valued.refs[position.symbol].auto_picked)
+                ),
                 day_change=change.amount if change else None,
                 day_change_pct=change.pct if change else None,
                 day_change_basis=basis,

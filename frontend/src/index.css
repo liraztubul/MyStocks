@@ -1975,6 +1975,18 @@ input.num {
 
 /* Captions under a number (basis, stale-since) and the "not available" note wrap in the holdings
    table so the Sell column fits at desktop width instead of being pushed past the scroll edge. */
+.symbol-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The disclosure wraps under the ticker instead of widening the sticky symbol column. */
+.coin-note {
+  max-inline-size: 11rem;
+  white-space: normal;
+}
+
 .holdings-table .price-note {
   display: inline-block;
   max-inline-size: 9rem;

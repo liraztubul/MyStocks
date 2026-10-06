@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -14,6 +15,9 @@ class AssetMatch:
     asset_type: AssetType
     # What the provider needs to price it: the ticker for stocks, the CoinGecko coin id for crypto.
     provider_id: str
+    # As the provider sent it (CoinGecko: an int or null). Kept raw on purpose:
+    # coin_resolution checks it and asks the user rather than trusting an unexpected value.
+    market_cap_rank: object = None
 
 
 class ReferenceKind(str, Enum):
@@ -38,6 +42,11 @@ class Quote:
     reference_price: Decimal | None = None
     reference_at: datetime | None = None
     reference_kind: ReferenceKind | None = None
+    # Crypto: which coin was priced. coin_auto_picked means coin_resolution chose it (the user
+    # never picked one), so the UI must say "Showing <name>, not this one?".
+    coin_id: str | None = None
+    coin_name: str | None = None
+    coin_auto_picked: bool = False
 
 
 class PriceKind(str, Enum):
@@ -77,6 +86,18 @@ class SymbolNotFoundError(MarketDataError):
 
 class PriceUnavailableError(MarketDataError):
     code = "price_unavailable"
+
+
+class AmbiguousSymbolError(MarketDataError):
+    """Several coins share the ticker and none is a clear choice; the user has to pick."""
+
+    code = "ambiguous_symbol"
+
+    def __init__(self, symbol: str, candidates: Sequence[AssetMatch]) -> None:
+        super().__init__(
+            f"Several coins use the ticker {symbol}. Pick the one you mean from the search."
+        )
+        self.candidates = tuple(candidates)
 
 
 class RateLimitedError(MarketDataError):

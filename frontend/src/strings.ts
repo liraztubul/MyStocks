@@ -109,6 +109,9 @@ export const t = {
     actions: 'Actions',
     sell: 'Sell',
     sellLabel: (symbol: string) => `Sell ${symbol}`,
+    autoPicked: (coin: string) => `Showing ${coin} (picked automatically)`,
+    autoPickedNote:
+      '"Picked automatically" means you never chose a coin for that ticker, so the best-known one is shown. Not the right one? Pick the coin from search the next time you add a trade for it.',
   },
   sell: {
     title: (symbol: string) => `Sell ${symbol}`,

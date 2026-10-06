@@ -54,6 +54,53 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   make duplicate fetches harmless. **Bring the budget back** (a calls table counting
   requests per hour, day and month) before anything fans out across many symbols at once
   (W2 sparklines, M6b portfolio-over-time) or when there is more than one backend instance.
+- **`daily_closes.close` will be `Numeric(38, 18)`**, rounded half-even to 18 places on write
+  (CoinGecko sends up to 17 significant digits as JSON numbers, parsed as `Decimal`), so
+  micro-priced coins keep their significant digits. Trades and holdings stay `Numeric(28, 10)`
+  for now; see "Precision of micro-priced coins" under Transactions.
+- **Crypto history is clamped to the past 365 days** (CoinGecko's free history; error code
+  10012 beyond it). Trades older than the drawn range are left off the chart's markers but stay
+  in the trades table, and the chart must render normally when every trade is older.
+- **CoinGecko facts verified by the Stage 2 probe (keyless API, 2026-10-06):** `interval=daily`
+  works; without it a range of 90 days or less comes back hourly. Daily points sit at 00:00 UTC,
+  and the point at D+1 00:00 is UTC day D's close; daily mode never includes the unfinished
+  day. Unknown coin: HTTP 404 `{"error": "coin not found"}`. Rate limit: HTTP 429
+  `{"status": {"error_code": 429, ...}}` (whether `Retry-After` is sent is unverified). Not yet
+  verified on the Demo plan: history depth and limits.
+
+## What a ticker means: `user_assets` (M6a)
+
+- **One record per (user, symbol)** holds the asset type and, for crypto, the CoinGecko coin
+  (`provider_id`) with how it was chosen (`id_source`: `user` or `rule`). Stored once instead of
+  on every transaction, so a position can't mix two asset types or two coins sharing a ticker,
+  which would corrupt its average cost.
+- **On every transaction write** (inside the per-user ledger lock): a coin picked in search is
+  recorded as the user's; a write without a pick inherits the recorded coin; a first write
+  without a pick lets the coin rules decide (recorded as `rule`). A different coin than the
+  user's own pick, or a different asset type, is refused with 409 `asset_identity_conflict`.
+  An automatic pick gives way to an explicit one. An ambiguous ticker without a pick is
+  refused with 422 `ambiguous_symbol`, listing the candidates. If CoinGecko is down or doesn't
+  know the ticker, the write still succeeds and the coin stays unknown until read time.
+- **When no trades use a symbol any more**, its record binds nothing: the next write starts it
+  over. That's the current way to fix a wrong coin or asset type (delete the trades and add
+  them again).
+- **Coin rules** (`app/market_data/coin_resolution.py`): auto-pick only an exact-ticker match
+  ranked within `AUTOPICK_MAX_RANK` (100) whose rivals are unranked or at least
+  `DOMINANCE_FACTOR` (10) times further down; anything else, including a single low-ranked
+  match or an unexpected `market_cap_rank` value, asks the user. Example from the probe: "TON"
+  matches only Tokamak Network (rank 805) because Toncoin now trades as GRAM, so it asks.
+  Resolution uses the full search list and is cached for an hour per ticker.
+- **Disclosure:** a coin chosen by the rules is shown as "Showing <coin> (picked automatically)"
+  with a note on how to choose another. For a rule pick recorded at write time the coin's id is
+  shown, because its display name isn't stored.
+- **Planned: an explicit "change coin" action** (`PUT /api/assets/{symbol}/identity` with a
+  confirmation that it relabels the whole position). Until then, a pick from search replaces an
+  automatic coin, and a user-picked coin changes only by deleting and re-adding the trades.
+- **Not supported:** holding two different coins with the same ticker at once. The ledger groups
+  by symbol; that would need it keyed by coin id.
+- **Migration** (`4a6e17d63025`): backfills one record per existing (user, symbol) with the
+  latest trade's asset type and no coin, with no network calls. Take a database backup before
+  deploying it.
 
 ## Known MVP limitations
 
@@ -91,6 +138,12 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
 - **The sell dialog's "more than you hold" check compares against today's holding only.** A
   backdated sell can pass it and still be refused by the server's chronological check; the
   dialog then shows the server's message and keeps the input. The server is authoritative.
+- **Precision of micro-priced coins.** Trade `quantity`, `price` and `fee` are `Numeric(28, 10)`,
+  and the API accepts at most 10 decimal places. A coin priced around 0.000004 (PEPE today)
+  keeps only 3 significant digits, and one below 0.00000000005 can't be entered at all (it would
+  round to 0 and fail `price > 0`). With quantities in the billions, that rounding becomes cents
+  of cost basis. Fix when needed: widen `price` to `Numeric(38, 18)` (a migration) and relax
+  the API's decimal places to match.
 - **No edit UI yet.** `PATCH /api/transactions/{id}` exists and is tested, but the page
   only supports add and delete.
 
@@ -181,6 +234,10 @@ CoinGecko responses on 2026-09-30.
   attribution "Data provided by CoinGecko" with a link to https://www.coingecko.com/en/api,
   which the app footer shows. If the plan's terms tighten, the provider sits behind the
   `MarketDataProvider` interface, so swapping it is a one-adapter change.
+- **Risk: an invalid CoinGecko Demo key fails silently.** The probe sent a bogus
+  `x-cg-demo-api-key` and got 200 at keyless limits, so a mistyped key in production would quietly
+  drop the app to the much lower keyless rate limit (429 after about 6 calls). Mitigation to
+  consider: a startup check that the key is accepted.
 - **Finnhub's plans are "strictly for personal use"**, with no sharing of data "with anyone or
   any 3rd party without written approval" (terms checked 2026-10-06). Finnhub doesn't require
   attribution. Showing stock data to other users is being gated behind an allowlist (M6a).

@@ -4,6 +4,7 @@ from app.api import api_router, probes
 from app.api.assets import market_data_error_handler
 from app.core.config import settings
 from app.core.edge import EdgeGuardMiddleware
+from app.core.errors import CodedHTTPError, coded_http_error_handler
 from app.market_data.provider import MarketDataError
 
 app = FastAPI(
@@ -17,3 +18,4 @@ app.add_middleware(EdgeGuardMiddleware)
 app.include_router(probes.router)
 app.include_router(api_router)
 app.add_exception_handler(MarketDataError, market_data_error_handler)
+app.add_exception_handler(CodedHTTPError, coded_http_error_handler)

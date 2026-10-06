@@ -29,6 +29,11 @@ class HoldingRead(BaseModel):
     price_unavailable_reason: str | None
     # MarketDataError code, e.g. not_available_on_deployment (see app.market_data.access).
     price_unavailable_code: str | None
+    # Crypto: the coin that was priced. coin_auto_picked: chosen by the coin rules because the
+    # user never picked one, so the UI shows "Showing <name>, not this one?".
+    coin_id: str | None
+    coin_name: str | None
+    coin_auto_picked: bool
     # Price-only change since the reference (fees excluded); null when there's no reference.
     day_change: Money | None
     day_change_pct: Percent | None

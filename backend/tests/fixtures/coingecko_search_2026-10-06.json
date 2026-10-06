@@ -1,0 +1,97 @@
+{
+  "_source": "CoinGecko GET /api/v3/search, keyless public API, recorded 2026-10-06 by the M6a Stage 2 probe, trimmed to the fields coin_resolution uses. For btc/eth/uni/pepe the probe recorded only the exact-ticker matches (with names). For ton it recorded the top 8 results (id, ticker, rank) but names only for Tokamak Network, so the other entries use their id as the name. Toncoin appears as the-open-network with ticker GRAM.",
+  "btc": [
+    {
+      "id": "bitcoin",
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "market_cap_rank": 1
+    }
+  ],
+  "eth": [
+    {
+      "id": "ethereum",
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "market_cap_rank": 2
+    }
+  ],
+  "uni": [
+    {
+      "id": "uniswap",
+      "symbol": "UNI",
+      "name": "Uniswap",
+      "market_cap_rank": 23
+    }
+  ],
+  "pepe": [
+    {
+      "id": "pepe",
+      "symbol": "PEPE",
+      "name": "Pepe",
+      "market_cap_rank": 58
+    },
+    {
+      "id": "based-pepe",
+      "symbol": "PEPE",
+      "name": "Based Pepe",
+      "market_cap_rank": 2203
+    },
+    {
+      "id": "pepe-sol",
+      "symbol": "PEPE",
+      "name": "Pepe on SOL",
+      "market_cap_rank": 3145
+    }
+  ],
+  "ton": [
+    {
+      "id": "canton-network",
+      "symbol": "CC",
+      "name": "canton-network",
+      "market_cap_rank": 26
+    },
+    {
+      "id": "the-open-network",
+      "symbol": "GRAM",
+      "name": "the-open-network",
+      "market_cap_rank": 32
+    },
+    {
+      "id": "stonk-3",
+      "symbol": "STONK",
+      "name": "stonk-3",
+      "market_cap_rank": 230
+    },
+    {
+      "id": "nest-blackopal-liquidstone-ii-vault",
+      "symbol": "NOPAL",
+      "name": "nest-blackopal-liquidstone-ii-vault",
+      "market_cap_rank": 275
+    },
+    {
+      "id": "redstone-oracles",
+      "symbol": "RED",
+      "name": "redstone-oracles",
+      "market_cap_rank": 320
+    },
+    {
+      "id": "ston-2",
+      "symbol": "STON",
+      "name": "ston-2",
+      "market_cap_rank": 558
+    },
+    {
+      "id": "ishares-bitcoin-trust-ondo-tokenized",
+      "symbol": "IBITON",
+      "name": "ishares-bitcoin-trust-ondo-tokenized",
+      "market_cap_rank": 718
+    },
+    {
+      "id": "tokamak-network",
+      "symbol": "TON",
+      "name": "Tokamak Network",
+      "market_cap_rank": 805
+    }
+  ]
+}

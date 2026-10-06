@@ -1,11 +1,14 @@
+import threading
 from collections.abc import Callable
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 import httpx2
+from cachetools import TTLCache
 
 from app.domain.enums import AssetType
+from app.market_data.coin_resolution import CoinChoiceNeeded, CoinPick, resolve_coin
 from app.market_data.dates import (
     ROLLING_CHANGE_WINDOW,
     crypto_close_snapshot_date,
@@ -14,6 +17,7 @@ from app.market_data.dates import (
 )
 from app.market_data.http import JsonResponse, get_json
 from app.market_data.provider import (
+    AmbiguousSymbolError,
     AssetMatch,
     PriceKind,
     PriceOnDate,
@@ -27,6 +31,9 @@ from app.market_data.provider import (
 BASE_URL = "https://api.coingecko.com/api/v3"
 NAME = "CoinGecko"
 MAX_SEARCH_RESULTS = 8
+# How long a ticker -> coin resolution is reused: holdings re-price every minute, and resolving
+# costs a /search call each time otherwise. A coin's rank doesn't swing within an hour.
+RESOLUTION_TTL_SECONDS = 3600
 # CoinGecko error_code values (returned inside the JSON body).
 HISTORY_RANGE_EXCEEDED = 10012
 COIN_NOT_FOUND = 10013
@@ -60,6 +67,10 @@ class CoinGeckoProvider:
         self._client = client
         self._headers = {"x-cg-demo-api-key": demo_api_key} if demo_api_key else {}
         self._now = now
+        self._resolutions: TTLCache[str, CoinPick | CoinChoiceNeeded | None] = TTLCache(
+            maxsize=512, ttl=RESOLUTION_TTL_SECONDS
+        )
+        self._resolutions_lock = threading.Lock()
 
     def _get(self, path: str, params: dict[str, str]) -> JsonResponse:
         response = get_json(
@@ -74,7 +85,7 @@ class CoinGeckoProvider:
             raise ProviderUnavailableError(f"CoinGecko returned an error ({response.status_code}).")
         return response
 
-    def search(self, query: str) -> list[AssetMatch]:
+    def _search_all(self, query: str) -> list[AssetMatch]:
         coins = self._get("/search", {"query": query}).body.get("coins", [])
         return [
             AssetMatch(
@@ -82,22 +93,39 @@ class CoinGeckoProvider:
                 name=coin["name"],
                 asset_type=AssetType.CRYPTO,
                 provider_id=coin["id"],
+                market_cap_rank=coin.get("market_cap_rank"),
             )
-            for coin in coins[:MAX_SEARCH_RESULTS]
+            for coin in coins
         ]
 
-    def _coin_id(self, symbol: str, provider_id: str | None) -> str:
+    def search(self, query: str) -> list[AssetMatch]:
+        return self._search_all(query)[:MAX_SEARCH_RESULTS]
+
+    def resolve(self, symbol: str) -> CoinPick | CoinChoiceNeeded | None:
+        """Which coin a ticker means when the user didn't pick one (see coin_resolution)."""
+        key = symbol.strip().upper()
+        with self._resolutions_lock:
+            if key in self._resolutions:
+                return self._resolutions[key]
+        # The full result list: the coin the user means can sit past the search box's first 8.
+        result = resolve_coin(key, self._search_all(key))
+        with self._resolutions_lock:
+            self._resolutions[key] = result
+        return result
+
+    def _coin(self, symbol: str, provider_id: str | None) -> tuple[str, str | None, bool]:
+        """(coin id, name if known, picked automatically?)"""
         if provider_id:
-            return provider_id
-        # Tickers aren't unique across coins; take the highest-ranked exact match, which is what
-        # someone typing "BTC" means. The frontend passes the picked coin's id to skip this.
-        matches = [m for m in self.search(symbol) if m.symbol == symbol.upper()]
-        if not matches:
+            return provider_id, None, False
+        result = self.resolve(symbol)
+        if result is None:
             raise SymbolNotFoundError(f"No coin found with symbol {symbol.upper()}.")
-        return matches[0].provider_id
+        if isinstance(result, CoinChoiceNeeded):
+            raise AmbiguousSymbolError(result.symbol, result.candidates)
+        return result.coin_id, result.name, True
 
     def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
-        coin_id = self._coin_id(symbol, provider_id)
+        coin_id, coin_name, auto_picked = self._coin(symbol, provider_id)
         body = self._get(
             "/simple/price",
             {
@@ -125,6 +153,9 @@ class CoinGeckoProvider:
             reference_price=reference,
             reference_at=as_of - ROLLING_CHANGE_WINDOW if reference is not None else None,
             reference_kind=ReferenceKind.ROLLING_24H if reference is not None else None,
+            coin_id=coin_id,
+            coin_name=coin_name,
+            coin_auto_picked=auto_picked,
         )
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:
@@ -148,7 +179,7 @@ class CoinGeckoProvider:
         if not within_free_crypto_history(snapshot, today):
             raise PriceUnavailableError(OLD_HISTORY_MESSAGE)
 
-        coin_id = self._coin_id(symbol, provider_id)
+        coin_id, _, _ = self._coin(symbol, provider_id)
         body = self._get(
             f"/coins/{coin_id}/history",
             {"date": snapshot.strftime("%d-%m-%Y"), "localization": "false"},
