@@ -1,5 +1,6 @@
 import { ApiError, isServerWaking } from './api/client'
 import { AppShell } from './components/AppShell'
+import { FormError } from './components/FormError'
 import { ServerWakeNotice } from './components/ServerWakeNotice'
 import { useMe } from './hooks/useAuth'
 import { useHashRoute } from './hooks/useHashRoute'
@@ -30,12 +31,11 @@ export function App() {
       </AppShell>
     )
   }
-  if (error instanceof ApiError && error.status === 401) return <LoginPage />
+  // null (rather than an error) means a write found the session expired; see useExpireSession.
+  if (user === null || (error instanceof ApiError && error.status === 401)) return <LoginPage />
   return (
     <main className="boot">
-      <p role="alert" className="form-error">
-        {isServerWaking(error) ? t.wake.gaveUp : t.common.serverUnreachable(error?.message ?? '')}
-      </p>
+      <FormError>{isServerWaking(error) ? t.wake.gaveUp : t.common.serverUnreachable(error?.message ?? '')}</FormError>
     </main>
   )
 }

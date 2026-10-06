@@ -3,19 +3,18 @@ import type { Holding } from '../api/portfolio'
 import { useHoldings } from '../hooks/usePortfolio'
 import { t } from '../strings'
 import { DayChange } from './DayChange'
+import { FormError } from './FormError'
 import { formatDateTime, formatMoney, formatPrice, formatSignedMoney, formatSignedPercent } from './format'
 import { RowsSkeleton } from './Skeleton'
 import { Trend } from './Trend'
 
-export function HoldingsTable() {
+export function HoldingsTable({ onSell }: { onSell: (holding: Holding) => void }) {
   const { data: holdings, error, isPending } = useHoldings()
 
   if (isPending) return <RowsSkeleton rows={5} />
   if (error) {
     return (
-      <p role="alert" className="form-error">
-        {t.common.loadError(t.holdings.heading, error.message)}
-      </p>
+<FormError>{t.common.loadError(t.holdings.heading, error.message)}</FormError>
     )
   }
   // The dashboard shows the empty state when there's no activity at all, so an empty list here
@@ -24,7 +23,7 @@ export function HoldingsTable() {
 
   return (
     <>
-      {/* Two layouts of the same rows: CSS shows the table from 1024px and the cards below it. */}
+      {/* Two layouts of the same rows: CSS shows the table from 1200px and the cards below it. */}
       <div className="table-scroll holdings-table">
         <table className="data-table sticky-first">
           <thead>
@@ -37,6 +36,9 @@ export function HoldingsTable() {
               <th scope="col" className="num">{t.holdings.dayChange}</th>
               <th scope="col" className="num">{t.holdings.unrealized}</th>
               <th scope="col" className="num">{t.holdings.unrealizedPct}</th>
+              <th scope="col">
+                <span className="visually-hidden">{t.holdings.actions}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -72,6 +74,9 @@ export function HoldingsTable() {
                   ) : (
                     <Trend value={h.unrealized_pl} text={formatSignedPercent(h.unrealized_pl_pct)} />
                   )}
+                </td>
+                <td>
+                  <SellButton holding={h} onSell={onSell} />
                 </td>
               </tr>
             ))}
@@ -114,11 +119,28 @@ export function HoldingsTable() {
                 />
               </Detail>
             </dl>
+            <div className="holding-card-actions">
+              <SellButton holding={h} onSell={onSell} />
+            </div>
           </li>
         ))}
       </ul>
       <p className="hint">{t.holdings.footnote}</p>
     </>
+  )
+}
+
+function SellButton({ holding, onSell }: { holding: Holding; onSell: (holding: Holding) => void }) {
+  return (
+    <button
+      type="button"
+      className="button button-secondary button-sell"
+      aria-label={t.holdings.sellLabel(holding.symbol)}
+      aria-haspopup="dialog"
+      onClick={() => onSell(holding)}
+    >
+      {t.holdings.sell}
+    </button>
   )
 }
 

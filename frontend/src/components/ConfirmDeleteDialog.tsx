@@ -1,8 +1,10 @@
-import { type RefObject, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { Transaction } from '../api/transactions'
 import { t } from '../strings'
 import { formatDateTime } from './format'
+import { FormError } from './FormError'
 import { Icon } from './Icon'
+import { Modal } from './Modal'
 
 interface Props {
   transaction: Transaction
@@ -12,35 +14,16 @@ interface Props {
   error: string | null
   onCancel: () => void
   onConfirm: () => void
-  // Where focus goes on close when the opener is gone (its row was just deleted).
   fallbackFocus: RefObject<HTMLElement | null>
 }
 
-/** Two-step delete confirmation (error prevention: a deletion can't be undone).
- *
- * Native <dialog> + showModal() gives a focus trap, Esc-to-cancel and an inert background for
- * free. In both steps the safe button comes first and takes focus, so a stray Enter cancels.
+/** Two-step delete confirmation (error prevention: a deletion can't be undone). In both steps
+ * the safe button comes first and takes focus, so a stray Enter cancels.
  */
 export function ConfirmDeleteDialog({ transaction: tx, hasLaterSells, pending, error, onCancel, onConfirm, fallbackFocus }: Props) {
-  const dialog = useRef<HTMLDialogElement>(null)
   const safeButton = useRef<HTMLButtonElement>(null)
   const [step, setStep] = useState<1 | 2>(1)
   const copy = t.transactions.confirmDelete
-
-  // React unmounts the <dialog> instead of closing it, so the browser never gets to return focus;
-  // hand it back to the opener ourselves, or to the table if the opener's row was deleted.
-  useEffect(() => {
-    const node = dialog.current
-    if (!node) return
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const fallback = fallbackFocus.current
-    node.showModal()
-    return () => {
-      node.close()
-      if (opener?.isConnected) opener.focus()
-      else fallback?.focus()
-    }
-  }, [fallbackFocus])
 
   // Each step starts on its safe button, never on the destructive one.
   useEffect(() => {
@@ -48,16 +31,14 @@ export function ConfirmDeleteDialog({ transaction: tx, hasLaterSells, pending, e
   }, [step])
 
   return (
-    <dialog
-      ref={dialog}
-      className="confirm-dialog card"
-      aria-labelledby="confirm-delete-title"
-      aria-describedby="confirm-delete-body"
-      // Esc fires "cancel"; route it through the same path as the Cancel button.
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!pending) onCancel()
-      }}
+    <Modal
+      labelledBy="confirm-delete-title"
+      describedBy="confirm-delete-body"
+      className="confirm-dialog"
+      initialFocus={safeButton}
+      fallbackFocus={fallbackFocus}
+      busy={pending}
+      onCancel={onCancel}
     >
       <div className="confirm-icon" aria-hidden="true">
         <Icon name={step === 1 ? 'trash' : 'alert'} size={22} />
@@ -81,13 +62,9 @@ export function ConfirmDeleteDialog({ transaction: tx, hasLaterSells, pending, e
             <Icon name="alert" size={16} /> {copy.laterSellsWarning(tx.symbol)}
           </p>
         )}
-        {error && (
-          <p role="alert" className="form-error">
-            {error}
-          </p>
-        )}
+        {error && <FormError>{error}</FormError>}
       </div>
-      <div className="confirm-actions">
+      <div className="modal-actions">
         {step === 1 ? (
           <>
             <button ref={safeButton} type="button" className="button button-secondary" onClick={onCancel}>
@@ -116,6 +93,6 @@ export function ConfirmDeleteDialog({ transaction: tx, hasLaterSells, pending, e
           </>
         )}
       </div>
-    </dialog>
+    </Modal>
   )
 }

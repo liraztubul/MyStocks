@@ -317,11 +317,20 @@ a {
   color: var(--warn-text);
 }
 
-/* Errors use the conventional red so they're recognised at a glance (informative feedback). */
+/* Errors use the conventional red so they're recognised at a glance (informative feedback), and
+   always carry an icon and words too, so colour is never the only signal. */
 .form-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
   color: var(--danger);
   font-size: var(--text-sm);
   font-weight: 600;
+}
+
+.form-error-icon {
+  flex: none;
+  margin-block-start: 2px;
 }
 
 .unit {
@@ -823,7 +832,8 @@ a {
 /* ============================================================================================
    Holdings: table from 768px, cards below
    ============================================================================================ */
-/* Table only from 1024px: at tablet width its P/L columns would sit behind a sideways scroll. */
+/* Table only from 1200px: any narrower and its P/L columns and the Sell button would sit behind a
+   sideways scroll, where an action is easy to miss. */
 .holdings-table {
   display: none;
 }
@@ -1407,20 +1417,12 @@ input.num {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .holdings-table {
-    display: block;
-  }
-
-  .holding-cards {
-    display: none;
-  }
-
   .form-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .field-symbol {
-    grid-column: span 2;
+    grid-column: span 3;
   }
 }
 
@@ -1817,7 +1819,7 @@ input.num {
 }
 
 /* .card sets its own positioning; a modal must stay pinned to the viewport while the page scrolls. */
-.confirm-dialog {
+.modal {
   position: fixed;
   inline-size: min(28rem, calc(100vw - 2 * var(--space-4)));
   max-block-size: calc(100vh - 2 * var(--space-4));
@@ -1827,11 +1829,11 @@ input.num {
   animation: pop-in 260ms var(--ease-spring) both;
 }
 
-.confirm-dialog::backdrop {
+.modal::backdrop {
   background: var(--backdrop);
 }
 
-.confirm-dialog h2 {
+.modal h2 {
   margin-block: var(--space-1) var(--space-3);
 }
 
@@ -1883,7 +1885,7 @@ input.num {
   margin-block-start: 2px;
 }
 
-.confirm-actions {
+.modal-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1892,13 +1894,199 @@ input.num {
 }
 
 @media (max-width: 479px) {
-  .confirm-actions {
+  .modal-actions {
     flex-direction: column-reverse;
   }
 
-  .confirm-actions .button {
+  .modal-actions .button {
     inline-size: 100%;
   }
+}
+
+/* Phones: the modal becomes a bottom sheet, within thumb reach and clear of the notch. */
+@media (max-width: 599px) {
+  .modal {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    max-block-size: calc(100dvh - var(--space-8));
+    margin: auto 0 0;
+    overflow-y: auto;
+    padding-block-end: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+    border-block-end: 0;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    animation: sheet-up 280ms var(--ease-out) both;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (min-width: 1200px) {
+  .holdings-table {
+    display: block;
+  }
+
+  .holding-cards {
+    display: none;
+  }
+}
+
+/* ============================================================================================
+   Selling from holdings (M5.8). Accent and neutral only: red/green stay reserved for loss/gain
+   and for danger.
+   ============================================================================================ */
+/* A hint that needs action (no usable price) keeps the amber of other stale-price messages. */
+.field-hint.warning-text {
+  color: var(--warn-text);
+  font-weight: 500;
+}
+
+.button-sell {
+  min-inline-size: 4rem;
+  padding-inline: var(--space-3);
+}
+
+/* Captions under a number (basis, stale-since) wrap in the holdings table so the Sell column
+   fits at desktop width instead of being pushed past the scroll edge. */
+.holdings-table .sub {
+  max-inline-size: 10rem;
+  margin-inline-start: auto;
+  white-space: normal;
+}
+
+.holding-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--space-3);
+}
+
+.sell-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sell-head h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-1);
+}
+
+.sell-held {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.quick-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.quick-amount {
+  flex: 1 1 0;
+  min-inline-size: 4.5rem;
+}
+
+.quick-amount:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sell-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+@media (min-width: 480px) {
+  .sell-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sell-when {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 600px) {
+  .sell-dialog {
+    inline-size: min(32rem, calc(100vw - 2 * var(--space-4)));
+  }
+}
+
+.sell-dialog .modal-actions {
+  margin-block-start: 0;
+}
+
+.form-help {
+  margin-block-end: var(--space-4);
+}
+
+.sale-status-region:empty {
+  display: none;
+}
+
+.sale-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-block-end: var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.sale-status p {
+  flex: 1 1 14rem;
+}
+
+.sale-status-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.sale-status-actions {
+  display: flex;
+  align-items: center;
+  margin-inline-start: auto;
+}
+
+.row-new > *,
+.sticky-first .row-new > :first-child {
+  background: var(--accent-soft);
+}
+
+.tag-new {
+  background: var(--violet-bg);
+  color: var(--violet-text);
+}
+
+h2[tabindex='-1']:focus {
+  outline: none;
+}
+
+h2[tabindex='-1']:focus-visible {
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
 }
 
 /* ============================================================================================

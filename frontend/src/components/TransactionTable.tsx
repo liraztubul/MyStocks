@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Transaction } from '../api/transactions'
+import { writeErrorMessage } from '../api/writeErrors'
 import { useDeleteTransaction } from '../hooks/useTransactions'
 import { t } from '../strings'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
@@ -87,7 +88,7 @@ export function TransactionTable({ transactions }: { transactions: Transaction[]
           transaction={confirming}
           hasLaterSells={hasLaterSells(transactions, confirming)}
           pending={remove.isPending}
-          error={remove.error?.message ?? null}
+          error={remove.error ? writeErrorMessage(remove.error) : null}
           onCancel={close}
           onConfirm={() => remove.mutate(confirming.id, { onSuccess: close })}
           fallbackFocus={tableRegion}

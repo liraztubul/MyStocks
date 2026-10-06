@@ -1,11 +1,22 @@
 export class ApiError extends Error {
   readonly status: number
+  // Seconds to wait, from a 429's Retry-After header; null when absent or unparseable.
+  readonly retryAfter: number | null
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, retryAfter: number | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.retryAfter = retryAfter
   }
+}
+
+// Retry-After is either delta-seconds or an HTTP date.
+function parseRetryAfter(header: string | null): number | null {
+  if (!header) return null
+  if (/^\d+$/.test(header.trim())) return Number(header.trim())
+  const at = Date.parse(header)
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - Date.now()) / 1000))
 }
 
 // Relative base: Vite's dev proxy and nginx in Docker both forward /api to the backend,
@@ -46,7 +57,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
-    throw new ApiError(response.status, await errorMessage(response))
+    throw new ApiError(response.status, await errorMessage(response), parseRetryAfter(response.headers.get('Retry-After')))
   }
   if (response.status === 204) return undefined as T
   return (await response.json()) as T

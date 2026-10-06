@@ -11,6 +11,7 @@
 | M5.6 | Visual redesign: design tokens, light/dark/system theme, mobile-first layout, skeletons, empty state | Done |
 | M5.5 | Free-tier production deploy: Vercel + Render + Neon, invite-only signup, rate limits, CSP, encrypted backups | Built; live verification pending |
 | M5.7 | Personality pass: Ledgie mascot, warm tokens in both themes, Rubik font, motion, first-entry celebration | Done |
+| M5.8 | Sell from holdings (dialog with 25% / 50% / All), buy-only add form, status-aware write errors | Done |
 | M6 | Price charts (TradingView Lightweight Charts) + a real router | Next |
 
 ## Known MVP limitations
@@ -37,17 +38,46 @@
   the same `find_oversell` check on delete and either reject it or flag the ledger as
   inconsistent; deferred for M2. Since M5.7 the UI mitigates it: deleting a buy with later
   sells of the same symbol shows an explicit warning in the confirmation dialog. The server
-  still doesn't block it.
+  still doesn't block it. **More visible since M5.8:** a sell can no longer be entered for
+  something you don't hold, so the add form feels "safe". A delete is now the only way left to
+  make the ledger inconsistent, and the next portfolio read then fails until it's fixed.
 - **USD only.** `currency` is stored per transaction, but the API accepts only `"USD"`.
   Multi-currency (ILS / TASE) is Phase 2.
 - **Symbols aren't validated on save.** The form now suggests real symbols (M4), but
   `POST /api/transactions` still accepts any non-empty symbol, so a hand-typed typo is stored.
 - **Oversell ordering is by `executed_at`, with buys before sells at an identical timestamp.**
   Real intraday order beyond timestamp precision isn't modelled.
-- **The client-side oversell hint only compares final totals.** The server's
-  chronological check is authoritative.
+- **The sell dialog's "more than you hold" check compares against today's holding only.** A
+  backdated sell can pass it and still be refused by the server's chronological check; the
+  dialog then shows the server's message and keeps the input. The server is authoritative.
 - **No edit UI yet.** `PATCH /api/transactions/{id}` exists and is tested, but the page
   only supports add and delete.
+
+### Selling (M5.8)
+
+- **Buys are added on the Transactions page; sells start from a holding.** The add form has no
+  Side selector and always posts `side: "buy"`. The API still accepts both, so the server-side
+  oversell check is unchanged and remains the source of truth.
+- **The quick amounts round down.** 25% and 50% are computed with big.js and rounded down to 10
+  decimal places (the API's precision), so they never exceed what's held. When that rounds to 0
+  (a dust position), the button is disabled, with a visible explanation rather than a tooltip.
+  "All" sends the exact quantity string the API returned.
+- **Price defaults only when it's fresh.** If the market price is stale or unavailable, the
+  field starts empty and is required, and a hint says why.
+- **Write errors are handled by status.** 400/422 show the server's text and keep the dialog
+  open; 401 drops cached data and returns to the login page with a "session timed out" notice;
+  403 shows a generic "not allowed"; 429 uses `Retry-After`; anything else is a generic retry
+  message. This applies to the add form and the delete dialog too.
+- **Errors carry an icon and words, never colour alone** (`FormError`); field errors are tied
+  to their inputs with `aria-describedby` and `aria-invalid`.
+- **The modal is shared** (`Modal`): native `<dialog>`, focus returns to the opener, or a
+  fallback when the opener is gone (selling the last unit removes its Sell button). It becomes
+  a bottom sheet below 600px.
+- **The holdings table now starts at 1200px** (cards below), so the Sell button is never pushed
+  past a horizontal scroll edge.
+- **No realized-P/L preview in the dialog.** Computing it client-side would duplicate the
+  engine. A possible later milestone: `POST /api/portfolio/preview-sell` that runs the same
+  engine on a hypothetical sell and returns the realized P/L, without saving anything.
 
 ### Market data (M4)
 

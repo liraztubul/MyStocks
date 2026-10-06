@@ -1,18 +1,18 @@
 import { useRealizedPl } from '../hooks/usePortfolio'
 import { t } from '../strings'
+import { FormError } from './FormError'
 import { formatDate, formatMoney, formatPrice, formatSignedMoney } from './format'
 import { RowsSkeleton } from './Skeleton'
 import { Trend } from './Trend'
 
-export function RealizedTable() {
+// highlightId marks a sale just made from the Sell dialog, with a visible tag, not colour alone.
+export function RealizedTable({ highlightId }: { highlightId?: string | null }) {
   const { data, error, isPending } = useRealizedPl()
 
   if (isPending) return <RowsSkeleton rows={2} />
   if (error) {
     return (
-      <p role="alert" className="form-error">
-        {t.common.loadError(t.realized.heading, error.message)}
-      </p>
+<FormError>{t.common.loadError(t.realized.heading, error.message)}</FormError>
     )
   }
   if (data.sales.length === 0) return <p className="muted">{t.realized.empty}</p>
@@ -37,9 +37,12 @@ export function RealizedTable() {
           </thead>
           <tbody>
             {data.sales.map((sale) => (
-              <tr key={sale.transaction_id}>
+              <tr key={sale.transaction_id} className={sale.transaction_id === highlightId ? 'row-new' : undefined}>
                 <th scope="row">
-                  <span className="symbol">{sale.symbol}</span>
+                  <span className="symbol-cell">
+                    <span className="symbol">{sale.symbol}</span>
+                    {sale.transaction_id === highlightId && <span className="tag tag-new">{t.realized.newTag}</span>}
+                  </span>
                 </th>
                 <td className="tabular">{formatDate(sale.executed_at)}</td>
                 <td className="num">{sale.quantity}</td>

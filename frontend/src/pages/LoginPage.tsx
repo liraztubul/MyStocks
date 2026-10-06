@@ -1,9 +1,11 @@
 import { useId, useState, type FormEvent } from 'react'
 import { isServerWaking } from '../api/client'
+import { FormError } from '../components/FormError'
+import { Icon } from '../components/Icon'
 import { Ledgie, Sparkles } from '../components/Ledgie'
 import { ServerWakeNotice } from '../components/ServerWakeNotice'
 import { ThemeToggle } from '../components/ThemeToggle'
-import { useLogin, useRegister } from '../hooks/useAuth'
+import { useLogin, useRegister, useSessionNotice } from '../hooks/useAuth'
 import { t } from '../strings'
 
 type Mode = 'login' | 'register'
@@ -17,6 +19,7 @@ export function LoginPage() {
   const loginMutation = useLogin()
   const registerMutation = useRegister()
   const mutation = mode === 'login' ? loginMutation : registerMutation
+  const sessionNotice = useSessionNotice()
   const hintId = useId()
   const inviteHintId = useId()
 
@@ -56,6 +59,12 @@ export function LoginPage() {
           {mode === 'login' ? t.auth.welcome : t.auth.welcomeNew}
           <span className="visually-hidden"> {mode === 'login' ? t.auth.logIn : t.auth.createAccount}</span>
         </h1>
+        {sessionNotice === 'expired' && (
+          <p role="status" className="notice">
+            <Icon name="clock" size={18} className="notice-icon" />
+            <span>{t.auth.sessionExpired}</span>
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="stack">
           <label className="field">
             <span className="field-label">{t.auth.email}</span>
@@ -116,14 +125,10 @@ export function LoginPage() {
             </label>
           )}
           {passwordsMismatch && (
-            <p role="alert" className="form-error">
-              {t.auth.passwordsMismatch}
-            </p>
+            <FormError>{t.auth.passwordsMismatch}</FormError>
           )}
           {mutation.error && (
-            <p role="alert" className="form-error">
-              {isServerWaking(mutation.error) ? t.wake.retryAction : mutation.error.message}
-            </p>
+            <FormError>{isServerWaking(mutation.error) ? t.wake.retryAction : mutation.error.message}</FormError>
           )}
           <button
             type="submit"

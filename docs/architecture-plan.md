@@ -70,6 +70,7 @@ MyStocks/
 | M5.6 | Visual redesign (tokens, theming, mobile-first, a11y) | Done, verified in browser |
 | M5.5 | Free-tier production deploy (Vercel + Render + Neon) | Built and tested locally; live verification pending |
 | M5.7 | Personality pass (mascot, warm tokens, Rubik, motion, first-entry celebration) | Done, verified in browser |
+| M5.8 | Sell from holdings + buy-only add form (UI only; API unchanged) | Done, verified in browser |
 | M6 | Price chart (+ replace hash navigation with a router) | Next |
 | M7 | Polish + deploy | Not started |
 

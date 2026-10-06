@@ -1,31 +1,22 @@
-import Big from 'big.js'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import type { AssetMatch } from '../api/assets'
 import { ApiError } from '../api/client'
-import type { AssetType, Side, Transaction } from '../api/transactions'
+import type { AssetType } from '../api/transactions'
+import { writeErrorMessage } from '../api/writeErrors'
 import { usePriceOn } from '../hooks/useAssets'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useCreateTransaction } from '../hooks/useTransactions'
 import { t } from '../strings'
+import { DECIMAL_PATTERN } from './decimal'
+import { FormError } from './FormError'
 import { Icon } from './Icon'
 import { SymbolAutocomplete } from './SymbolAutocomplete'
-
-const DECIMAL_PATTERN = '\\d+(\\.\\d{1,10})?'
-
-// Mirrors the server's final-balance total only; the server's check (which also walks the
-// history chronologically) is the one that counts.
-function heldQuantity(transactions: Transaction[], symbol: string): Big {
-  return transactions
-    .filter((tx) => tx.symbol === symbol)
-    .reduce((held, tx) => (tx.side === 'buy' ? held.plus(tx.quantity) : held.minus(tx.quantity)), Big(0))
-}
 
 const EMPTY_FORM = {
   symbol: '',
   asset_type: 'stock' as AssetType,
   // Set when the symbol came from search; null when typed by hand.
   provider_id: null as string | null,
-  side: 'buy' as Side,
   quantity: '',
   // null means "not typed by the user", so the looked-up price shows through.
   price: null as string | null,
@@ -35,9 +26,11 @@ const EMPTY_FORM = {
 
 type FormState = typeof EMPTY_FORM
 
-export function TransactionForm({ transactions }: { transactions: Transaction[] }) {
+// Buys only: selling starts from a holding (SellDialog), where what you hold is already known.
+export function TransactionForm() {
   const [form, setForm] = useState(EMPTY_FORM)
   const create = useCreateTransaction()
+  const helpId = useId()
 
   const symbol = form.symbol.trim().toUpperCase()
   const lookupSymbol = useDebouncedValue(symbol, 400)
@@ -51,10 +44,6 @@ export function TransactionForm({ transactions }: { transactions: Transaction[] 
   const autoPrice = priceOn.data?.price ?? null
   const price = form.price ?? autoPrice ?? ''
   const usingAutoPrice = form.price === null && autoPrice !== null
-
-  const quantityValid = new RegExp(`^${DECIMAL_PATTERN}$`).test(form.quantity)
-  const held = heldQuantity(transactions, symbol)
-  const oversell = form.side === 'sell' && symbol !== '' && quantityValid && Big(form.quantity).gt(held)
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -71,12 +60,11 @@ export function TransactionForm({ transactions }: { transactions: Transaction[] 
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    if (oversell) return
     create.mutate(
       {
         symbol,
         asset_type: form.asset_type,
-        side: form.side,
+        side: 'buy',
         quantity: form.quantity,
         price,
         fee: form.fee,
@@ -88,7 +76,11 @@ export function TransactionForm({ transactions }: { transactions: Transaction[] 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="transaction-form">
+    <form onSubmit={handleSubmit} className="transaction-form" aria-describedby={helpId}>
+      <div id={helpId} className="form-help">
+        <p className="hint">{t.form.buyOnly}</p>
+        <p className="hint">{t.form.backdateHint}</p>
+      </div>
       <div className="form-grid">
         <label className="field field-symbol">
           <span className="field-label">{t.form.symbol}</span>
@@ -108,13 +100,6 @@ export function TransactionForm({ transactions }: { transactions: Transaction[] 
           >
             <option value="stock">{t.transactions.assetTypes.stock}</option>
             <option value="crypto">{t.transactions.assetTypes.crypto}</option>
-          </select>
-        </label>
-        <label className="field">
-          <span className="field-label">{t.form.side}</span>
-          <select value={form.side} onChange={(e) => update('side', e.target.value as Side)}>
-            <option value="buy">{t.transactions.sides.buy}</option>
-            <option value="sell">{t.transactions.sides.sell}</option>
           </select>
         </label>
         <label className="field">
@@ -162,18 +147,9 @@ export function TransactionForm({ transactions }: { transactions: Transaction[] 
         </label>
       </div>
       <PriceHint priceOn={priceOn} usingAutoPrice={usingAutoPrice} />
-      {oversell && (
-        <p role="alert" className="form-error">
-          {t.form.oversell(held.toString(), symbol)}
-        </p>
-      )}
-      {create.error && (
-        <p role="alert" className="form-error">
-          {create.error.message}
-        </p>
-      )}
+      {create.error && <FormError>{writeErrorMessage(create.error)}</FormError>}
       <div className="form-actions">
-        <button type="submit" className="button button-primary" disabled={create.isPending || oversell}>
+        <button type="submit" className="button button-primary" disabled={create.isPending}>
           <Icon name="plus" size={18} />
           {t.form.submit}
         </button>
