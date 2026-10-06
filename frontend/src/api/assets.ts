@@ -12,6 +12,7 @@ export interface AssetMatch {
 export interface AssetSearchResponse {
   results: AssetMatch[]
   unavailable: { asset_type: AssetType; code: string; detail: string }[]
+  stock_data_available: boolean
 }
 
 export interface PriceOnDate {

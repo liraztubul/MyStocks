@@ -1,5 +1,6 @@
 import { useId, useState, type KeyboardEvent } from 'react'
 import type { AssetMatch } from '../api/assets'
+import { NOT_AVAILABLE_ON_DEPLOYMENT } from '../api/writeErrors'
 import { useAssetSearch } from '../hooks/useAssets'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { t } from '../strings'
@@ -83,7 +84,9 @@ export function SymbolAutocomplete({ value, onType, onSelect }: Props) {
       {open &&
         search.data?.unavailable.map((source) => (
           <p key={source.asset_type} className="hint">
-            {t.form.sourceUnavailable(source.asset_type, source.detail)}
+            {source.code === NOT_AVAILABLE_ON_DEPLOYMENT
+              ? t.stockData.searchHint
+              : t.form.sourceUnavailable(source.asset_type, source.detail)}
           </p>
         ))}
     </div>

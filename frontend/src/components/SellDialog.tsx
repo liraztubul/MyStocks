@@ -2,7 +2,7 @@ import Big from 'big.js'
 import { useId, useRef, useState, type FormEvent, type RefObject } from 'react'
 import type { Holding } from '../api/portfolio'
 import type { Transaction } from '../api/transactions'
-import { writeErrorMessage } from '../api/writeErrors'
+import { NOT_AVAILABLE_ON_DEPLOYMENT, writeErrorMessage } from '../api/writeErrors'
 import { useCreateTransaction } from '../hooks/useTransactions'
 import { t } from '../strings'
 import { DECIMAL_PATTERN, isDecimal } from './decimal'
@@ -111,15 +111,18 @@ export function SellDialog({ holding: h, onSold, onCancel, fallbackFocus }: Prop
       })
   }
 
-  const priceHint =
-    marketPrice !== null && h.price_as_of
+  const notOnDeployment = h.price_unavailable_code === NOT_AVAILABLE_ON_DEPLOYMENT
+  const priceHint = notOnDeployment
+    ? t.stockData.sellPrice
+    : marketPrice !== null && h.price_as_of
       ? t.sell.priceFresh(formatDateTime(h.price_as_of))
       : h.current_price !== null && h.price_as_of
         ? t.sell.priceStale(h.current_price, formatDateTime(h.price_as_of))
         : h.price_unavailable_reason
           ? t.sell.priceUnavailable(h.price_unavailable_reason)
           : t.sell.priceUnavailableNoReason
-  const priceNeedsInput = marketPrice === null
+  // Amber only for a real price problem; this deployment's limit is shown neutrally.
+  const priceNeedsInput = marketPrice === null && !notOnDeployment
 
   return (
     <Modal

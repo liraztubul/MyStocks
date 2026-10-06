@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Holding } from '../api/portfolio'
+import { NOT_AVAILABLE_ON_DEPLOYMENT } from '../api/writeErrors'
 import { useHoldings } from '../hooks/usePortfolio'
 import { t } from '../strings'
 import { DayChange } from './DayChange'
@@ -154,6 +155,9 @@ function SymbolCell({ holding: h }: { holding: Holding }) {
 }
 
 function PriceCell({ holding: h }: { holding: Holding }) {
+  if (h.current_price === null && h.price_unavailable_code === NOT_AVAILABLE_ON_DEPLOYMENT) {
+    return <span className="muted price-note">{t.stockData.label}</span>
+  }
   if (h.current_price === null) {
     return (
       <span className="warning-text" title={h.price_unavailable_reason ?? undefined}>

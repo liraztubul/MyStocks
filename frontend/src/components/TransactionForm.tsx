@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent } from 'react'
 import type { AssetMatch } from '../api/assets'
 import { ApiError } from '../api/client'
 import type { AssetType } from '../api/transactions'
-import { writeErrorMessage } from '../api/writeErrors'
+import { isNotAvailableOnDeployment, writeErrorMessage } from '../api/writeErrors'
 import { usePriceOn } from '../hooks/useAssets'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useCreateTransaction } from '../hooks/useTransactions'
@@ -167,6 +167,13 @@ function PriceHint({
 }) {
   if (priceOn.fetchStatus === 'fetching') {
     return <p className="hint">{t.form.lookingUp}</p>
+  }
+  if (isNotAvailableOnDeployment(priceOn.error)) {
+    return (
+      <p role="status" className="hint">
+        {t.stockData.autofill}
+      </p>
+    )
   }
   if (priceOn.error) {
     // 404s (no data for that date) already say what to do; outages need the manual-entry nudge.

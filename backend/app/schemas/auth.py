@@ -2,14 +2,16 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.emails import normalize_email
+
 
 class _EmailBody(BaseModel):
     email: EmailStr
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str) -> str:
-        return value.lower()
+    def normalize(cls, value: str) -> str:
+        return normalize_email(value)
 
 
 class RegisterRequest(_EmailBody):

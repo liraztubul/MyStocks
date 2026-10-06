@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.assets import MarketDataDep
 from app.core.security import CurrentUser
 from app.db.models import Transaction
 from app.db.session import DbSession
@@ -23,8 +22,8 @@ from app.domain.pnl import (
     total_realized,
     value_portfolio,
 )
+from app.market_data.access import StockDataNotAvailableError, UserMarketData, UserMarketDataDep
 from app.market_data.provider import MarketDataError, Quote, ReferenceKind
-from app.market_data.service import MarketData
 from app.schemas.portfolio import (
     AllocationRead,
     DayChangeBasis,
@@ -48,6 +47,11 @@ MAX_QUOTE_WORKERS = 8
 class PriceResult:
     quote: Quote | None
     error: str | None
+    error_code: str | None = None
+
+    @property
+    def not_available_on_deployment(self) -> bool:
+        return self.error_code == StockDataNotAvailableError.code
 
 
 def _replay(db: Session, user_id: uuid.UUID) -> tuple[list[Transaction], dict[str, Position]]:
@@ -72,14 +76,16 @@ def _asset_types(trades: Sequence[Transaction]) -> dict[str, AssetType]:
     return {t.symbol: t.asset_type for t in latest}
 
 
-def _fetch_price(market_data: MarketData, symbol: str, asset_type: AssetType) -> PriceResult:
+def _fetch_price(market_data: UserMarketData, symbol: str, asset_type: AssetType) -> PriceResult:
     try:
         return PriceResult(market_data.provider(asset_type).get_quote(symbol), None)
     except MarketDataError as exc:
-        return PriceResult(None, exc.message)
+        return PriceResult(None, exc.message, exc.code)
 
 
-def _fetch_prices(market_data: MarketData, symbols: dict[str, AssetType]) -> dict[str, PriceResult]:
+def _fetch_prices(
+    market_data: UserMarketData, symbols: dict[str, AssetType]
+) -> dict[str, PriceResult]:
     if not symbols:
         return {}
     # In parallel: with a provider down, each lookup waits out its timeout, and doing them in
@@ -108,7 +114,7 @@ class ValuedPortfolio:
 
 
 def _load_valued_portfolio(
-    db: Session, user_id: uuid.UUID, market_data: MarketData
+    db: Session, user_id: uuid.UUID, market_data: UserMarketData
 ) -> ValuedPortfolio:
     trades, positions = _replay(db, user_id)
     asset_types = _asset_types(trades)
@@ -135,7 +141,9 @@ def _day_change(trades: list[Transaction], quote: Quote | None) -> DailyChange |
 
 
 @router.get("/holdings", response_model=list[HoldingRead])
-def get_holdings(user: CurrentUser, db: DbSession, market_data: MarketDataDep) -> list[HoldingRead]:
+def get_holdings(
+    user: CurrentUser, db: DbSession, market_data: UserMarketDataDep
+) -> list[HoldingRead]:
     valued = _load_valued_portfolio(db, user.id, market_data)
     rows = []
     for holding in valued.portfolio.holdings:
@@ -158,6 +166,7 @@ def get_holdings(user: CurrentUser, db: DbSession, market_data: MarketDataDep) -
                 price_as_of=price.quote.as_of if price.quote else None,
                 price_is_stale=bool(price.quote and price.quote.is_stale),
                 price_unavailable_reason=price.error,
+                price_unavailable_code=price.error_code,
                 day_change=change.amount if change else None,
                 day_change_pct=change.pct if change else None,
                 day_change_basis=basis,
@@ -170,15 +179,19 @@ def get_holdings(user: CurrentUser, db: DbSession, market_data: MarketDataDep) -
 
 @router.get("/summary", response_model=PortfolioSummaryRead)
 def get_summary(
-    user: CurrentUser, db: DbSession, market_data: MarketDataDep
+    user: CurrentUser, db: DbSession, market_data: UserMarketDataDep
 ) -> PortfolioSummaryRead:
     valued = _load_valued_portfolio(db, user.id, market_data)
     portfolio = valued.portfolio
     changes = {s: c for s, c in valued.day_changes.items() if c is not None}
     total_change = total_daily_change(changes.values())
+    # Symbols this deployment may not price are reported on their own, so the "couldn't get a
+    # price" warnings only list real provider problems.
+    not_available = sorted(s for s, p in valued.prices.items() if p.not_available_on_deployment)
     return PortfolioSummaryRead(
         currency=CURRENCY,
         total_cost_basis=portfolio.total_cost_basis,
+        priced_cost_basis=portfolio.priced_cost_basis,
         total_market_value=portfolio.total_market_value,
         total_unrealized_pl=portfolio.total_unrealized,
         total_unrealized_pl_pct=portfolio.total_unrealized_pct,
@@ -192,14 +205,18 @@ def get_summary(
             for h in portfolio.holdings
             if h.valuation is not None and h.allocation_pct is not None
         ],
-        unpriced_symbols=list(portfolio.unpriced_symbols),
+        unpriced_symbols=[s for s in portfolio.unpriced_symbols if s not in not_available],
+        not_available_symbols=not_available,
+        stock_data_available=market_data.stock_data_available,
         has_stale_prices=any(p.quote and p.quote.is_stale for p in valued.prices.values()),
         total_day_change=total_change.amount if total_change else None,
         total_day_change_pct=total_change.pct if total_change else None,
         day_change_bases=sorted(
             {b for s in changes if (b := valued.day_change_basis(s)) is not None}
         ),
-        day_change_unavailable_symbols=sorted(set(valued.day_changes) - set(changes)),
+        day_change_unavailable_symbols=sorted(
+            set(valued.day_changes) - set(changes) - set(not_available)
+        ),
     )
 
 

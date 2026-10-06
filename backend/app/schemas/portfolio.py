@@ -27,6 +27,8 @@ class HoldingRead(BaseModel):
     price_as_of: datetime | None
     price_is_stale: bool
     price_unavailable_reason: str | None
+    # MarketDataError code, e.g. not_available_on_deployment (see app.market_data.access).
+    price_unavailable_code: str | None
     # Price-only change since the reference (fees excluded); null when there's no reference.
     day_change: Money | None
     day_change_pct: Percent | None
@@ -45,14 +47,20 @@ class AllocationRead(BaseModel):
 
 class PortfolioSummaryRead(BaseModel):
     currency: str
+    # All open positions. Market value and unrealized P/L cover priced holdings only, measured
+    # against priced_cost_basis; subtracting value from total_cost_basis is not a P/L.
     total_cost_basis: Money
-    # Market value and unrealized cover priced holdings only; unpriced ones are listed.
+    priced_cost_basis: Money
     total_market_value: Money
     total_unrealized_pl: Money
     total_unrealized_pl_pct: Percent | None
     total_realized_pl: Money
     allocation: list[AllocationRead]
+    # Couldn't be priced because of a provider problem.
     unpriced_symbols: list[str]
+    # Not priced because this deployment may not show stock data to this user.
+    not_available_symbols: list[str]
+    stock_data_available: bool
     has_stale_prices: bool
     # Open holdings only; a position fully closed since the reference isn't included.
     total_day_change: Money | None

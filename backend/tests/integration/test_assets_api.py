@@ -15,7 +15,7 @@ from app.market_data.provider import (
     ProviderUnavailableError,
     Quote,
 )
-from app.market_data.service import MarketData, get_market_data
+from app.market_data.service import MarketData, shared_market_data
 
 PASSWORD = "correct-horse-battery"
 
@@ -61,7 +61,7 @@ def providers() -> dict[AssetType, StubProvider]:
 
 @pytest.fixture
 def authed(client: TestClient, providers: dict[AssetType, StubProvider]) -> Iterator[TestClient]:
-    app.dependency_overrides[get_market_data] = lambda: MarketData(providers)
+    app.dependency_overrides[shared_market_data] = lambda: MarketData(providers)
     client.post("/api/auth/register", json={"email": "a@example.com", "password": PASSWORD})
     client.post("/api/auth/login", json={"email": "a@example.com", "password": PASSWORD})
     yield client

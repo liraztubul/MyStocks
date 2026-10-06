@@ -1,3 +1,4 @@
+import Big from 'big.js'
 import type { ReactNode } from 'react'
 import type { PortfolioSummary } from '../api/portfolio'
 import { t } from '../strings'
@@ -14,10 +15,14 @@ function dayChangeBasisText(summary: PortfolioSummary): string {
 
 export function SummaryCards({ summary }: { summary: PortfolioSummary }) {
   const partial = summary.unpriced_symbols.length > 0 || summary.has_stale_prices
+  // Some holdings have no price (any reason): value and P/L cover a subset of the cost basis, so
+  // both numbers are labelled to stop "value minus cost basis" reading as a loss.
+  const subset = !Big(summary.priced_cost_basis).eq(summary.total_cost_basis)
+  const notOnDeployment = summary.not_available_symbols
   return (
     <>
       <div className="hero">
-        <div className="hero-label">{t.summary.marketValue}</div>
+        <div className="hero-label">{subset ? t.summary.marketValuePriced : t.summary.marketValue}</div>
         <div className="hero-value num">
           <CountUp id="hero-market-value" value={summary.total_market_value} format={formatMoney} />{' '}
           <span className="unit">{t.common.usd}</span>
@@ -38,11 +43,16 @@ export function SummaryCards({ summary }: { summary: PortfolioSummary }) {
         )}
       </div>
       <div className="stat-grid">
-        <Stat label={t.summary.costBasis} icon="wallet" tone="violet">
+        <Stat
+          label={subset ? t.summary.costBasisAll : t.summary.costBasis}
+          icon="wallet"
+          tone="violet"
+          detail={subset && t.summary.pricedCostBasis(formatMoney(summary.priced_cost_basis))}
+        >
           {formatMoney(summary.total_cost_basis)}
         </Stat>
         <Stat
-          label={t.summary.unrealized}
+          label={subset ? t.summary.unrealizedPriced : t.summary.unrealized}
           icon="chart"
           tone="cyan"
           detail={
@@ -79,6 +89,13 @@ export function SummaryCards({ summary }: { summary: PortfolioSummary }) {
           )}
         </Stat>
       </div>
+      {notOnDeployment.length > 0 && (
+        // Neutral, not the amber warning: nothing is broken, this deployment just doesn't show it.
+        <div className="notice notice-info" role="status">
+          <Icon name="alert" size={18} className="notice-icon" />
+          <div>{t.summary.notOnDeployment(notOnDeployment.join(', '))}</div>
+        </div>
+      )}
       {(partial || summary.day_change_unavailable_symbols.length > 0) && (
         <div className="notice" role="status">
           <Icon name="alert" size={18} className="notice-icon" />

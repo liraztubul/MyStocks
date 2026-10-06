@@ -129,7 +129,11 @@ class Holding(Generic[T]):
 class Portfolio(Generic[T]):
     holdings: tuple[Holding[T], ...]
     positions: dict[str, Position[T]]
+    # Every open position, priced or not.
     total_cost_basis: Decimal
+    # The subset market value and unrealized P/L are measured against. Value minus
+    # total_cost_basis is NOT a P/L when some holdings are unpriced.
+    priced_cost_basis: Decimal
     # Market value and unrealized cover priced holdings only; see unpriced_symbols.
     total_market_value: Decimal
     total_unrealized: Decimal
@@ -186,6 +190,7 @@ def value_portfolio(
             holdings=holdings,
             positions=positions,
             total_cost_basis=sum((p.cost_basis for p in open_positions), ZERO),
+            priced_cost_basis=priced_cost_basis,
             total_market_value=total_market_value,
             total_unrealized=total_unrealized,
             total_unrealized_pct=(

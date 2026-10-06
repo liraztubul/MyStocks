@@ -69,6 +69,12 @@ export const t = {
     stalePrices:
       "Some prices are catching their breath: we couldn't reach the price provider, so you're seeing the last known prices (each marked with when it was last updated).",
     unpriced: (symbols: string) => `No price available for ${symbols}; excluded from market value and P/L totals.`,
+    notOnDeployment: (symbols: string) =>
+      `Stock prices aren't available on this deployment (${symbols}): those holdings show cost basis only. Value and P/L cover priced holdings; "Cost basis (all)" also includes the unpriced ones, so subtracting one from the other doesn't give a P/L.`,
+    marketValuePriced: 'Portfolio value (priced holdings)',
+    costBasisAll: 'Cost basis (all)',
+    unrealizedPriced: 'Unrealized P/L (priced)',
+    pricedCostBasis: (amount: string) => `Priced holdings: ${amount} USD (what P/L is measured against)`,
     dayChangeUnavailable: (symbols: string) => `No daily change for ${symbols}.`,
     dayChangeOpenOnly: 'Open positions only.',
   },
@@ -224,6 +230,21 @@ export const t = {
       `Search unavailable (${message}). Type the symbol and pick its type.`,
     sourceUnavailable: (assetType: 'stock' | 'crypto', detail: string) =>
       `${assetType === 'stock' ? 'Stock' : 'Crypto'} search unavailable: ${detail}`,
+  },
+  stockData: {
+    // Free stock data plans are licensed for personal use; this deployment shows them only to
+    // allowlisted accounts.
+    notAvailable: "Stock prices aren't available on this deployment.",
+    label: 'not available on this deployment',
+    searchHint: "Stock search isn't available on this deployment. Type the ticker and choose Stock as the type.",
+    autofill: "Stock prices aren't available on this deployment, so please enter the price yourself.",
+    sellPrice: "Stock prices aren't available on this deployment, so please enter the price you sold at.",
+  },
+  attribution: {
+    // Wording and link required by CoinGecko's Demo API plan.
+    coingecko: 'Data provided by CoinGecko',
+    coingeckoUrl: 'https://www.coingecko.com/en/api',
+    coingeckoScope: 'Crypto prices: ',
   },
   disclaimer: [
     'Cost basis: average cost; buy fees add to cost, sell fees reduce proceeds. All amounts in USD.',

@@ -32,6 +32,7 @@ class AssetSearchResponse(BaseModel):
     results: list[AssetMatchRead]
     # Sources that failed while others answered, so the UI can say "crypto search is down".
     unavailable: list[UnavailableSource]
+    stock_data_available: bool
 
 
 class QuoteRead(_FromAttributes):

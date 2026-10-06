@@ -13,7 +13,9 @@
 | M5.7 | Personality pass: Ledgie mascot, warm tokens in both themes, Rubik font, motion, first-entry celebration | Done |
 | M5.8 | Sell from holdings (dialog with 25% / 50% / All), buy-only add form, status-aware write errors | Done |
 | M5.9 | Theme toggle reduced to light/dark; OS preference until the user picks | Done |
-| M6 | Price charts (TradingView Lightweight Charts) + a real router | Next |
+| M6a.1 | Real router (React Router), deep links, legacy `#/` redirect | Done |
+| M6a.g | Stock-data allowlist: one server-side gate for all stock market data | Done |
+| M6 | Price charts (TradingView Lightweight Charts) | In progress (M6a) |
 
 ## Known MVP limitations
 
@@ -53,6 +55,33 @@
   dialog then shows the server's message and keeps the input. The server is authoritative.
 - **No edit UI yet.** `PATCH /api/transactions/{id}` exists and is tested, but the page
   only supports add and delete.
+
+### Stock-data allowlist (M6a)
+
+- **Why:** Finnhub ("strictly for personal use") and Tiingo (free: "internal use") don't allow
+  showing their data to other people. `STOCK_DATA_ALLOWED_EMAILS` decides who sees stock market
+  data at all: quotes, price-on-date, search and (Stage 4) history.
+- **Rule:** listed emails only. Unset or empty means everyone in development and nobody in
+  production, decided by `ENVIRONMENT` (the same mechanism as `REGISTRATION_INVITE_CODE`;
+  `render.yaml` sets `ENVIRONMENT=production`).
+- **One place, default-deny:** routers can only get market data through
+  `app.market_data.access.UserMarketDataDep`. The ungated `shared_market_data` is checked by a
+  structural test (no router imports it, and in FastAPI's dependency graph it only appears under
+  the gate). The gate sits in front of the providers' caches, so a blocked user can't receive a
+  quote cached for an allowed one, stale copies included.
+- **Error convention** (documented in `app/market_data/access.py`): actions (quote, price-on)
+  answer 403 `{code: "not_available_on_deployment"}`; views (holdings, summary, history) answer
+  200 with prices null plus the code or `available: false`. The frontend maps the code to a
+  specific message in `api/writeErrors.ts`.
+- **Assumption, shown in the UI:** blocked stock positions keep their cost basis, which counts
+  in "Cost basis (all)". Value and unrealized P/L cover priced holdings only, measured against
+  `priced_cost_basis`; subtracting value from the full cost basis is not a P/L. Realized P/L is
+  unaffected (it uses your own trade prices). Typing a price yourself always works.
+- **Emails are unverified.** Registration normalizes emails (trimmed, lowercase), and a database
+  CHECK keeps every stored email lowercase, so the unique index is effectively case-insensitive
+  and a differently-cased copy of an allowlisted address can't register. But anyone with the
+  invite code could register an allowlisted address nobody has claimed yet, so **only list
+  addresses that are already registered.** Email verification would close this.
 
 ### Selling (M5.8)
 
@@ -109,6 +138,14 @@ CoinGecko responses on 2026-09-30.
 - **Rate limits.** The free Finnhub tier allows 60 calls/min, and keyless CoinGecko allows
   much less. Search is debounced (300ms) and cached for 1 hour. A rate-limited provider
   degrades to a message, never to stale data.
+- **Risk: CoinGecko's Demo plan is described as "for testing and exploration"** on its pricing
+  page (checked 2026-10-06; 100 calls/min, 10,000 calls/month). It also requires the
+  attribution "Data provided by CoinGecko" with a link to https://www.coingecko.com/en/api,
+  which the app footer shows. If the plan's terms tighten, the provider sits behind the
+  `MarketDataProvider` interface, so swapping it is a one-adapter change.
+- **Finnhub's plans are "strictly for personal use"**, with no sharing of data "with anyone or
+  any 3rd party without written approval" (terms checked 2026-10-06). Finnhub doesn't require
+  attribution. Showing stock data to other users is being gated behind an allowlist (M6a).
 
 ### P/L (M3)
 
@@ -127,9 +164,8 @@ CoinGecko responses on 2026-09-30.
 
 ### Dashboard (M5)
 
-- **Hash navigation is temporary.** The Dashboard and Transactions views switch on
-  `#/` vs `#/transactions` (`hooks/useHashRoute.ts`). **M6 should introduce a real router**
-  (e.g. React Router or TanStack Router) once there are per-symbol chart pages.
+- **Routing (since M6a):** React Router 7 with real paths (`/`, `/transactions`,
+  `/holdings/:symbol`). Old `#/…` links are rewritten to paths on load and on hash change.
 - **Daily change, stocks:** "since previous close" means the close before the session of the
   latest quote. Pre-market, that's the last *completed* session's change, possibly days old.
   `day_change_reference_at` (00:00 New York on that session) is shown so this is visible.
@@ -179,6 +215,10 @@ CoinGecko responses on 2026-09-30.
   inside their card with a sticky symbol column at every width.
 - **RTL readiness:** layout uses logical properties throughout, but no page has been rendered
   with `dir="rtl"` yet.
+- **Follow-up: `npm audit` reports one high-severity advisory** in `source-map-js`
+  (GHSA-68fv-2mgg-jv7q, denial of service through crafted source maps). It's a build-time
+  dependency of the Vite toolchain and isn't shipped to the browser. Left alone on purpose
+  (2026-10-06); revisit with the next Vite update or `npm audit fix` in its own commit.
 
 ### Deployment (M5.5)
 

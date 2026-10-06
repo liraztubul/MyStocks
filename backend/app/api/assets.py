@@ -1,11 +1,11 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Request, status
+from fastapi import APIRouter, Path, Query, Request, status
 from fastapi.responses import JSONResponse
 
-from app.core.security import CurrentUser
 from app.domain.enums import AssetType
+from app.market_data.access import StockDataNotAvailableError, UserMarketDataDep
 from app.market_data.provider import (
     MarketDataError,
     PriceOnDate,
@@ -14,7 +14,6 @@ from app.market_data.provider import (
     RateLimitedError,
     SymbolNotFoundError,
 )
-from app.market_data.service import MarketData, get_market_data
 from app.schemas.assets import (
     AssetSearchResponse,
     PriceOnDateRead,
@@ -24,12 +23,14 @@ from app.schemas.assets import (
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
-MarketDataDep = Annotated[MarketData, Depends(get_market_data)]
 Symbol = Annotated[str, Path(min_length=1, max_length=32)]
 ProviderId = Annotated[str | None, Query(max_length=128)]
 
 
 def _status_for(exc: MarketDataError) -> int:
+    # An action on data this deployment may not show (see app.market_data.access).
+    if isinstance(exc, StockDataNotAvailableError):
+        return status.HTTP_403_FORBIDDEN
     if isinstance(exc, SymbolNotFoundError | PriceUnavailableError):
         return status.HTTP_404_NOT_FOUND
     # Rate limits are ours with the upstream provider, not the caller's, so 503 rather than 429.
@@ -50,8 +51,7 @@ async def market_data_error_handler(_request: Request, exc: Exception) -> JSONRe
 
 @router.get("/search", response_model=AssetSearchResponse)
 def search_assets(
-    _user: CurrentUser,
-    market_data: MarketDataDep,
+    market_data: UserMarketDataDep,
     q: Annotated[str, Query(min_length=1, max_length=64)],
 ) -> AssetSearchResponse:
     result = market_data.search(q.strip())
@@ -64,6 +64,7 @@ def search_assets(
                 )
                 for f in result.failures
             ],
+            "stock_data_available": market_data.stock_data_available,
         },
         from_attributes=True,
     )
@@ -73,8 +74,7 @@ def search_assets(
 def get_quote(
     symbol: Symbol,
     asset_type: AssetType,
-    _user: CurrentUser,
-    market_data: MarketDataDep,
+    market_data: UserMarketDataDep,
     provider_id: ProviderId = None,
 ) -> Quote:
     return market_data.provider(asset_type).get_quote(symbol.strip(), provider_id)
@@ -84,8 +84,7 @@ def get_quote(
 def get_price_on(
     symbol: Symbol,
     asset_type: AssetType,
-    _user: CurrentUser,
-    market_data: MarketDataDep,
+    market_data: UserMarketDataDep,
     on: Annotated[date, Query(alias="date")],
     provider_id: ProviderId = None,
 ) -> PriceOnDate:

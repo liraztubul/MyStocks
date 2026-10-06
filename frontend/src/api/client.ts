@@ -2,12 +2,15 @@ export class ApiError extends Error {
   readonly status: number
   // Seconds to wait, from a 429's Retry-After header; null when absent or unparseable.
   readonly retryAfter: number | null
+  // The backend's machine-readable reason, when it sends one (e.g. not_available_on_deployment).
+  readonly code: string | null
 
-  constructor(status: number, message: string, retryAfter: number | null = null) {
+  constructor(status: number, message: string, retryAfter: number | null = null, code: string | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.retryAfter = retryAfter
+    this.code = code
   }
 }
 
@@ -57,24 +60,29 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
-    throw new ApiError(response.status, await errorMessage(response), parseRetryAfter(response.headers.get('Retry-After')))
+    const { message, code } = await errorBody(response)
+    throw new ApiError(response.status, message, parseRetryAfter(response.headers.get('Retry-After')), code)
   }
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
 
-// FastAPI returns {detail: string} for HTTPExceptions and {detail: [{msg}, ...]} for validation.
-async function errorMessage(response: Response): Promise<string> {
+// FastAPI returns {detail: string} for HTTPExceptions and {detail: [{msg}, ...]} for validation;
+// market-data errors add a {code}.
+async function errorBody(response: Response): Promise<{ message: string; code: string | null }> {
+  const fallback = `Request failed (${response.status})`
   try {
-    const { detail } = (await response.json()) as { detail?: unknown }
-    if (typeof detail === 'string') return detail
+    const { detail, code } = (await response.json()) as { detail?: unknown; code?: unknown }
+    const reason = typeof code === 'string' ? code : null
+    if (typeof detail === 'string') return { message: detail, code: reason }
     if (Array.isArray(detail)) {
-      return detail.map((d: { msg?: string }) => d.msg ?? 'Invalid input').join('; ')
+      return { message: detail.map((d: { msg?: string }) => d.msg ?? 'Invalid input').join('; '), code: reason }
     }
+    return { message: fallback, code: reason }
   } catch {
     // Non-JSON error body; fall through to the generic message.
   }
-  return `Request failed (${response.status})`
+  return { message: fallback, code: null }
 }
 
 export function apiGet<T>(path: string): Promise<T> {

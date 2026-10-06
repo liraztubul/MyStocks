@@ -56,6 +56,13 @@ export function AppShell({ user, children }: { user: User; children: ReactNode }
         {t.disclaimer.map((line) => (
           <p key={line}>{line}</p>
         ))}
+        <p>
+          {t.attribution.coingeckoScope}
+          {/* no-referrer: don't tell the provider which page (e.g. /holdings/BTC) linked to it. */}
+          <a href={t.attribution.coingeckoUrl} rel="noreferrer" referrerPolicy="no-referrer">
+            {t.attribution.coingecko}
+          </a>
+        </p>
       </footer>
       <NavLinks className="bottom-nav" />
     </div>

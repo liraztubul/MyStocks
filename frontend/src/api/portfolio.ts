@@ -19,6 +19,8 @@ export interface Holding {
   price_as_of: string | null
   price_is_stale: boolean
   price_unavailable_reason: string | null
+  // e.g. not_available_on_deployment: shown as a neutral label, not as a provider problem.
+  price_unavailable_code: string | null
   day_change: string | null
   day_change_pct: string | null
   day_change_basis: DayChangeBasis | null
@@ -28,13 +30,18 @@ export interface Holding {
 
 export interface PortfolioSummary {
   currency: string
+  // All open positions. Value and unrealized P/L cover priced holdings only, measured against
+  // priced_cost_basis; value minus total_cost_basis is not a P/L.
   total_cost_basis: string
+  priced_cost_basis: string
   total_market_value: string
   total_unrealized_pl: string
   total_unrealized_pl_pct: string | null
   total_realized_pl: string
   allocation: { symbol: string; market_value: string; allocation_pct: string }[]
   unpriced_symbols: string[]
+  not_available_symbols: string[]
+  stock_data_available: boolean
   has_stale_prices: boolean
   total_day_change: string | null
   total_day_change_pct: string | null

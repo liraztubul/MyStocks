@@ -4,6 +4,8 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import make_url
 
+from app.core.emails import normalize_email
+
 # The value .env.example ships with; production must never run with it.
 DEV_JWT_PLACEHOLDER = "replace-me-with-a-random-string-of-at-least-32-chars"
 
@@ -38,6 +40,11 @@ class Settings(BaseSettings):
 
     # Unset: open registration in development, registration disabled in production.
     registration_invite_code: str | None = None
+    # Comma-separated emails allowed to see stock market data (quotes and history): the free
+    # stock data plans are licensed for personal use only. Unset or empty: everyone in
+    # development, nobody in production (the same rule as the invite code). Emails are not
+    # verified, so only list addresses that are already registered.
+    stock_data_allowed_emails: str | None = None
     # Shared with Vercel, which adds it to every proxied /api request. Unset disables the check.
     origin_secret: str | None = None
     # Comma-separated; state-changing requests from any other Origin are refused when set.
@@ -46,6 +53,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def stock_data_allowlist(self) -> frozenset[str]:
+        raw = self.stock_data_allowed_emails or ""
+        return frozenset(normalize_email(e) for e in raw.split(",") if e.strip())
 
     @property
     def database_url(self) -> str:

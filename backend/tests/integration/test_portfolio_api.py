@@ -16,7 +16,7 @@ from app.market_data.provider import (
     Quote,
     ReferenceKind,
 )
-from app.market_data.service import MarketData, get_market_data
+from app.market_data.service import MarketData, shared_market_data
 
 PASSWORD = "correct-horse-battery"
 FETCHED_AT = datetime(2026, 10, 2, 20, 0, tzinfo=timezone.utc)
@@ -87,7 +87,7 @@ def api(client: TestClient, stocks: QuoteSource, crypto: QuoteSource, clock: Clo
             AssetType.CRYPTO: CachedProvider(crypto, timer=clock),
         }
     )
-    app.dependency_overrides[get_market_data] = lambda: market_data
+    app.dependency_overrides[shared_market_data] = lambda: market_data
     log_in(client, "alice@example.com")
     return client
 
@@ -151,6 +151,7 @@ def test_holdings_for_the_worked_example(api: TestClient, stocks: QuoteSource) -
             "price_as_of": "2026-10-02T20:00:00Z",
             "price_is_stale": False,
             "price_unavailable_reason": None,
+            "price_unavailable_code": None,
             # No reference price from the provider: day change degrades to null, not 0.
             "day_change": None,
             "day_change_pct": None,

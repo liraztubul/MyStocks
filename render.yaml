@@ -36,6 +36,10 @@ services:
       # Unset or empty: registration is disabled in production.
       - key: REGISTRATION_INVITE_CODE
         sync: false
+      # Emails allowed to see stock market data (personal-use licences). Unset or empty: nobody,
+      # because ENVIRONMENT above is production. List only already-registered addresses.
+      - key: STOCK_DATA_ALLOWED_EMAILS
+        sync: false
       # Must equal ORIGIN_SECRET in the Vercel project.
       - key: ORIGIN_SECRET
         sync: false
