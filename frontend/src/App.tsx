@@ -4,7 +4,7 @@ import { FormError } from './components/FormError'
 import { ServerWakeNotice } from './components/ServerWakeNotice'
 import { useMe } from './hooks/useAuth'
 import { lazy, Suspense } from 'react'
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useParams } from 'react-router'
 import { RowsSkeleton } from './components/Skeleton'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
@@ -16,8 +16,14 @@ import { t } from './strings'
 // (user, null for logged out), and a successful login writes the user into the /me cache, which
 // swaps the page in place. The URL never changes, so a deep link survives logging in. The boot
 // and error screens only ever show before the first answer.
-// Its own chunk: the holding page will carry the chart library, which other pages don't need.
-const HoldingPage = lazy(() => import('./pages/HoldingPage'))
+// Its own chunk: the asset page will carry the chart library, which other pages don't need.
+const AssetPage = lazy(() => import('./pages/AssetPage'))
+
+// The page was /holdings/:symbol before it covered assets you don't hold; old links still work.
+function LegacyHoldingRedirect() {
+  const { symbol = '' } = useParams()
+  return <Navigate to={`/assets/${encodeURIComponent(symbol)}`} replace />
+}
 
 export function App() {
   const { data: user, error, isPending } = useMe()
@@ -38,13 +44,14 @@ export function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route
-            path="/holdings/:symbol"
+            path="/assets/:symbol"
             element={
               <Suspense fallback={<RowsSkeleton rows={4} />}>
-                <HoldingPage />
+                <AssetPage />
               </Suspense>
             }
           />
+          <Route path="/holdings/:symbol" element={<LegacyHoldingRedirect />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AppShell>

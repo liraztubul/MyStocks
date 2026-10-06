@@ -2,9 +2,9 @@ import { Link, useParams } from 'react-router'
 import { PageHeading } from '../components/PageHeading'
 import { t } from '../strings'
 
-// Placeholder for the M6a price chart (stage 5). Lazily loaded, so the chart library stays out of
-// the main bundle once it lands.
-export default function HoldingPage() {
+// One page per asset, held or not (a watched symbol isn't a holding). Placeholder for the M6a
+// price chart (stage 5); lazily loaded, so the chart library stays out of the main bundle.
+export default function AssetPage() {
   const symbol = (useParams().symbol ?? '').toUpperCase()
   return (
     <section className="card section" aria-labelledby="holding-heading">

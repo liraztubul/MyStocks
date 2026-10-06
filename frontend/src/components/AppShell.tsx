@@ -58,7 +58,7 @@ export function AppShell({ user, children }: { user: User; children: ReactNode }
         ))}
         <p>
           {t.attribution.coingeckoScope}
-          {/* no-referrer: don't tell the provider which page (e.g. /holdings/BTC) linked to it. */}
+          {/* no-referrer: don't tell the provider which page (e.g. /assets/BTC) linked to it. */}
           <a href={t.attribution.coingeckoUrl} rel="noreferrer" referrerPolicy="no-referrer">
             {t.attribution.coingecko}
           </a>

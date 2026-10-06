@@ -72,7 +72,7 @@ MyStocks/
 | M5.7 | Personality pass (mascot, warm tokens, Rubik, motion, first-entry celebration) | Done, verified in browser |
 | M5.8 | Sell from holdings + buy-only add form (UI only; API unchanged) | Done, verified in browser |
 | M5.9 | Theme toggle: light/dark only, OS preference until chosen | Done, verified in browser |
-| M6a.1 | Router: real paths, deep links, legacy `#/` redirect | Done, verified locally; production checks by owner |
+| M6a.1 | Router: real paths, deep links, legacy `#/` redirect; asset page at `/assets/:symbol` (`/holdings/:symbol` redirects), build files under `/static/` | Done, verified locally; production checks by owner |
 | M6a.g | Stock-data allowlist (one server-side gate, default-deny) | Done, verified in browser |
 | M6 | Price chart | In progress (M6a) |
 | M7 | Polish + deploy | Not started |

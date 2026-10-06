@@ -17,6 +17,44 @@
 | M6a.g | Stock-data allowlist: one server-side gate for all stock market data | Done |
 | M6 | Price charts (TradingView Lightweight Charts) | In progress (M6a) |
 
+## Watchlist (planned, not started)
+
+A watched symbol is an asset you don't necessarily hold, so the per-asset page is
+`/assets/:symbol` and the M6a history endpoint already works without a position (see "Price
+history (M6a)" below). **All stock data stays behind `STOCK_DATA_ALLOWED_EMAILS`** in every
+phase: a blocked user can watch stocks, but sees them without prices, like a blocked holding.
+
+- **W1: the list.** Add and remove symbols; each row shows the price, daily change and a link to
+  the asset page. Needs a `watchlist_items` table (user, asset type, symbol, provider id) and
+  reuses the quote path and its cache, so a row costs what a holding costs.
+- **W2: a sparkline per row**, drawn from the `daily_closes` cache. **Design the request budget
+  first:** a list of N symbols can mean N history backfills on first view, and Tiingo's free
+  tier allows 50 requests/hour, 1,000/day and 500 symbols/month. Likely answers: serve only
+  what's cached, backfill lazily per visible row, and bring back the per-provider budget that
+  M6a dropped (see "Price history (M6a)").
+- **W3: reports**, starting with SEC EDGAR filings (public, keyless, with a published fair-access
+  policy to follow) and an earnings calendar (provider to be chosen and its terms checked).
+- **Phase 2: news with Hebrew summaries**, only after provider licensing is checked: Finnhub's
+  plans are personal use only, and summaries would be derived results, which its terms also
+  restrict.
+- **Phase 3: price alerts.** These need a background worker and a hosting decision first: the
+  free Render instance sleeps when idle, so alerts checked in-process would silently miss
+  events. Options to weigh then: a paid always-on instance, a scheduled job (GitHub Actions or
+  Render cron), or a hosted queue.
+
+## Price history (M6a, in progress)
+
+- **The history endpoint doesn't require a position.** Any symbol gets a normal chart. Markers
+  come only from the requesting user's own ledger, and are `[]` when there are no trades. 404
+  means an unknown symbol only.
+- **Stock history follows the allowlist:** a blocked user gets 200 with `available: false`
+  (the view convention in `app/market_data/access.py`), whether or not the symbol exists.
+- **No request budget in M6a.** A 429 or any other provider failure is treated as a provider
+  failure: serve the cache marked stale, plus a short in-memory cooldown. Idempotent upserts
+  make duplicate fetches harmless. **Bring the budget back** (a calls table counting
+  requests per hour, day and month) before anything fans out across many symbols at once
+  (W2 sparklines, M6b portfolio-over-time) or when there is more than one backend instance.
+
 ## Known MVP limitations
 
 ### Auth (M1)
@@ -165,7 +203,11 @@ CoinGecko responses on 2026-09-30.
 ### Dashboard (M5)
 
 - **Routing (since M6a):** React Router 7 with real paths (`/`, `/transactions`,
-  `/holdings/:symbol`). Old `#/…` links are rewritten to paths on load and on hash change.
+  `/assets/:symbol`). Old `#/…` links are rewritten to paths on load and on hash change, and
+  `/holdings/:symbol` (the first name of the asset page) redirects to `/assets/:symbol`.
+- **Build files live under `/static/`** (Vite `build.assetsDir`), not Vite's default `/assets/`,
+  so they can't collide with the `/assets/:symbol` route. The SPA fallback (Vercel rewrite,
+  nginx) excludes `/api/`, `/static/` and `/fonts/`, so a missing bundle or font is a real 404.
 - **Daily change, stocks:** "since previous close" means the close before the session of the
   latest quote. Pre-market, that's the last *completed* session's change, possibly days old.
   `day_change_reference_at` (00:00 New York on that session) is shown so this is visible.
