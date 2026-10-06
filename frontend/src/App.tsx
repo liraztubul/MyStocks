@@ -3,18 +3,24 @@ import { AppShell } from './components/AppShell'
 import { FormError } from './components/FormError'
 import { ServerWakeNotice } from './components/ServerWakeNotice'
 import { useMe } from './hooks/useAuth'
-import { useHashRoute } from './hooks/useHashRoute'
+import { lazy, Suspense } from 'react'
+import { Route, Routes } from 'react-router'
+import { RowsSkeleton } from './components/Skeleton'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { NotFoundPage } from './pages/NotFoundPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 import { t } from './strings'
 
-// Auth gate instead of a router for now: /me decides whether the app or the login page renders
+// The auth gate sits outside the routes: /me decides whether the app or the login page renders
 // (user, null for logged out), and a successful login writes the user into the /me cache, which
-// swaps the page in place. The boot and error screens only ever show before the first answer.
+// swaps the page in place. The URL never changes, so a deep link survives logging in. The boot
+// and error screens only ever show before the first answer.
+// Its own chunk: the holding page will carry the chart library, which other pages don't need.
+const HoldingPage = lazy(() => import('./pages/HoldingPage'))
+
 export function App() {
   const { data: user, error, isPending } = useMe()
-  const route = useHashRoute()
 
   // The first request of a visit is the one that usually meets a sleeping backend.
   if (isPending) {
@@ -27,8 +33,20 @@ export function App() {
   }
   if (user) {
     return (
-      <AppShell user={user} route={route}>
-        {route === 'transactions' ? <TransactionsPage /> : <DashboardPage />}
+      <AppShell user={user}>
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/transactions" element={<TransactionsPage />} />
+          <Route
+            path="/holdings/:symbol"
+            element={
+              <Suspense fallback={<RowsSkeleton rows={4} />}>
+                <HoldingPage />
+              </Suspense>
+            }
+          />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
       </AppShell>
     )
   }

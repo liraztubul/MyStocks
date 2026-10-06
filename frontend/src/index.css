@@ -1930,6 +1930,11 @@ input.num {
   }
 }
 
+/* A page's single call to action sizes to its label instead of stretching across the card. */
+.page-action {
+  align-self: flex-start;
+}
+
 /* ============================================================================================
    Selling from holdings (M5.8). Accent and neutral only: red/green stay reserved for loss/gain
    and for danger.

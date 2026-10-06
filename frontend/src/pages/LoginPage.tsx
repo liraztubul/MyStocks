@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { isServerWaking } from '../api/client'
 import { FormError } from '../components/FormError'
 import { Icon } from '../components/Icon'
@@ -20,6 +20,10 @@ export function LoginPage() {
   const registerMutation = useRegister()
   const mutation = mode === 'login' ? loginMutation : registerMutation
   const sessionNotice = useSessionNotice()
+
+  useEffect(() => {
+    document.title = `${mode === 'login' ? t.auth.logIn : t.auth.createAccount} · ${t.appName}`
+  }, [mode])
   const hintId = useId()
   const inviteHintId = useId()
 

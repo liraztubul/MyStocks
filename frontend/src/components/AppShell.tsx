@@ -1,43 +1,45 @@
 import type { ReactNode } from 'react'
 import type { User } from '../api/auth'
-import type { Route } from '../hooks/useHashRoute'
+import { Link, NavLink } from 'react-router'
 import { t } from '../strings'
 import { Icon, type IconName } from './Icon'
 import { Ledgie } from './Ledgie'
 import { ServerWakeNotice } from './ServerWakeNotice'
 import { ThemeToggle } from './ThemeToggle'
 
-const LINKS: { route: Route; href: string; label: string; icon: IconName }[] = [
-  { route: 'dashboard', href: '#/', label: t.nav.dashboard, icon: 'dashboard' },
-  { route: 'transactions', href: '#/transactions', label: t.nav.transactions, icon: 'list' },
+const LINKS: { to: string; label: string; icon: IconName }[] = [
+  { to: '/', label: t.nav.dashboard, icon: 'dashboard' },
+  { to: '/transactions', label: t.nav.transactions, icon: 'list' },
 ]
 
-function NavLinks({ route, className }: { route: Route; className: string }) {
+// NavLink sets aria-current="page" on the active link, which the existing CSS styles. `end` keeps
+// "/" from matching every path.
+function NavLinks({ className }: { className: string }) {
   return (
     <nav aria-label={t.nav.label} className={className}>
       {LINKS.map((link) => (
-        <a key={link.route} href={link.href} aria-current={route === link.route ? 'page' : undefined}>
+        <NavLink key={link.to} to={link.to} end>
           <Icon name={link.icon} size={20} />
           <span>{link.label}</span>
-        </a>
+        </NavLink>
       ))}
     </nav>
   )
 }
 
-export function AppShell({ user, route, children }: { user: User; route: Route; children: ReactNode }) {
+export function AppShell({ user, children }: { user: User; children: ReactNode }) {
   return (
     <div className="app">
       <header className="app-header">
         <div className="container header-row">
-          <a href="#/" className="brand">
+          <Link to="/" className="brand">
             <span className="brand-mark" aria-hidden="true">
               <Ledgie pose="mark" size={30} />
             </span>
             {t.appName}
-          </a>
+          </Link>
           {/* Same links twice: top tabs from tablet up, a bottom tab bar on phones. CSS shows one. */}
-          <NavLinks route={route} className="top-nav" />
+          <NavLinks className="top-nav" />
           <div className="header-actions">
             <span className="user-email" data-testid="user-email">
               {user.email}
@@ -55,7 +57,7 @@ export function AppShell({ user, route, children }: { user: User; route: Route; 
           <p key={line}>{line}</p>
         ))}
       </footer>
-      <NavLinks route={route} className="bottom-nav" />
+      <NavLinks className="bottom-nav" />
     </div>
   )
 }

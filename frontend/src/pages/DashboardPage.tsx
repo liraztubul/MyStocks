@@ -5,6 +5,7 @@ import { AllocationDonut } from '../components/AllocationDonut'
 import { EmptyState } from '../components/EmptyState'
 import { FormError } from '../components/FormError'
 import { HoldingsTable } from '../components/HoldingsTable'
+import { PageHeading } from '../components/PageHeading'
 import { Icon } from '../components/Icon'
 import { RealizedTable } from '../components/RealizedTable'
 import { SellDialog } from '../components/SellDialog'
@@ -42,6 +43,7 @@ export function DashboardPage() {
 
   return (
     <>
+      <PageHeading title={t.nav.dashboard} />
       <section aria-labelledby="summary-heading" className="summary">
         <h2 id="summary-heading" className="visually-hidden">
           {t.summary.heading}

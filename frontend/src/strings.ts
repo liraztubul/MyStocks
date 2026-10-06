@@ -150,6 +150,14 @@ export const t = {
     footnote: 'Proceeds are net of the sell fee. Realized P/L = proceeds − average cost × quantity.',
     newTag: 'new',
   },
+  holding: {
+    chartComingSoon: 'The price chart for this holding is on its way.',
+    backToDashboard: 'Back to the dashboard',
+  },
+  notFound: {
+    title: 'Page not found',
+    body: "There's nothing at this address. It may have moved, or the link has a typo.",
+  },
   empty: {
     title: 'Your ledger is ready for its first entry',
     body: "Add a buy you've made and MyStocks will keep track of its value, P/L and allocation for you.",

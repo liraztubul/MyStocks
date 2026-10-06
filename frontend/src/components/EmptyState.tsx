@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { t } from '../strings'
 import { Icon } from './Icon'
 import { Ledgie } from './Ledgie'
@@ -10,10 +11,10 @@ export function EmptyState() {
       </div>
       <h2 id="empty-title">{t.empty.title}</h2>
       <p className="muted">{t.empty.body}</p>
-      <a className="button button-primary" href="#/transactions">
+      <Link className="button button-primary" to="/transactions">
         <Icon name="plus" size={18} />
         {t.empty.action}
-      </a>
+      </Link>
     </section>
   )
 }
