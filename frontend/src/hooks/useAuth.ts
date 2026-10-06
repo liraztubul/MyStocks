@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { getMe, login, register, type Registration, type User } from '../api/auth'
-import { ApiError, retryUnlessDefinite } from '../api/client'
+import { ApiError } from '../api/client'
 
 const ME_KEY = ['auth', 'me']
 // Why the login page is showing, when it wasn't the user's choice. Lives in the query cache only
@@ -10,13 +10,27 @@ const SESSION_NOTICE_KEY = ['auth', 'notice']
 
 export type SessionNotice = 'expired' | null
 
+// A 401 from /me is an answer ("logged out"), so it's data (null), not an error. That matters:
+// TanStack resets a query with no data to `pending` on every refetch, and the focus refetch would
+// then swap the login page for the boot screen and wipe a half-filled form. With null as data, a
+// refetch only runs in the background. Like returning Optional.empty() instead of throwing
+// NotFound: absence is a normal result, and only real failures take the exception path.
+async function getMeOrNull(): Promise<User | null> {
+  try {
+    return await getMe()
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null
+    throw error
+  }
+}
+
 export function useMe() {
   return useQuery<User | null>({
     queryKey: ME_KEY,
-    queryFn: getMe,
-    // A 401 is an answer ("logged out"), not a transient failure; a cold start is retried.
-    retry: (failureCount, error) =>
-      !(error instanceof ApiError && error.status === 401) && retryUnlessDefinite(failureCount, error),
+    queryFn: getMeOrNull,
+    // Tab switches still re-check the session (a login in another tab, or an expiry, shows up
+    // when you come back), but at most every 30 s rather than on every focus.
+    staleTime: 30_000,
   })
 }
 
