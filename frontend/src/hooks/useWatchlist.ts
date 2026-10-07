@@ -6,9 +6,9 @@ import { useExpireSession } from './useAuth'
 
 const WATCHLIST_KEY = ['watchlist']
 
-// CoinGecko's own cache is 30-60 s and ours 60 s, so polling faster would only re-read it.
-// Interval refetches pause while the tab is hidden.
-const POLL_MS = 60_000
+// The server reuses a crypto quote for 5 minutes (CRYPTO_QUOTE_TTL_SECONDS, sized for CoinGecko's
+// monthly cap), so polling faster would only re-read its cache. Paused while the tab is hidden.
+const POLL_MS = 5 * 60_000
 
 // A 401 here means the session expired while the page was open: swap to the login page.
 export function useWatchlist() {

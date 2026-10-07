@@ -1,3 +1,6 @@
+import enum
+import logging
+import re
 import threading
 from collections.abc import Callable, Sequence
 from datetime import date, datetime, time, timedelta, timezone
@@ -22,6 +25,7 @@ from app.market_data.provider import (
     AmbiguousSymbolError,
     AssetMatch,
     CoinRef,
+    MarketDataError,
     PriceKind,
     PriceOnDate,
     PriceUnavailableError,
@@ -30,6 +34,8 @@ from app.market_data.provider import (
     ReferenceKind,
     SymbolNotFoundError,
 )
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.coingecko.com/api/v3"
 NAME = "CoinGecko"
@@ -44,10 +50,26 @@ MAX_IDS_PER_CALL = 500
 # CoinGecko error_code values (returned inside the JSON body).
 HISTORY_RANGE_EXCEEDED = 10012
 COIN_NOT_FOUND = 10013
+# Key problems (docs.coingecko.com/docs/errors-and-rate-limits, 2026-10-07): 10002 "no API key"
+# (also sent for an invalid Demo key, seen in a probe), 10011 a Demo key on the Pro root URL.
+KEY_REJECTED = {10002, 10010, 10011}
+KEY_REJECTED_MESSAGE = "CoinGecko refused the request (API key problem)."
+_COIN_ID_PATH = re.compile(r"^/coins/[^/]+")
 OLD_HISTORY_MESSAGE = (
     "Crypto prices older than 1 year aren't available on CoinGecko's free plan. "
     "Enter the price manually."
 )
+
+
+class KeyCheck(enum.Enum):
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    UNKNOWN = "unknown"
+
+
+def _key_rejected(status_code: int, code: int | None) -> bool:
+    # 401 alone isn't enough: CoinGecko also sends it for the 365-day history limit (10012).
+    return code in KEY_REJECTED or (status_code in (401, 403) and code is None)
 
 
 def _utc_now() -> datetime:
@@ -81,16 +103,56 @@ class CoinGeckoProvider:
             maxsize=512, ttl=RESOLUTION_TTL_SECONDS
         )
         self._resolutions_lock = threading.Lock()
+        self._key_warned = False
+
+    @property
+    def has_demo_key(self) -> bool:
+        return bool(self._headers)
+
+    def check_demo_key(self) -> KeyCheck:
+        """Whether CoinGecko accepts the configured Demo key. /ping isn't cached by CoinGecko's
+        CDN (a cached data response skips the key check), so it reaches the server that
+        validates the key: a probe on 2026-10-07 got 401 (error 10002) for an invalid key."""
+        try:
+            response = get_json(
+                self._client,
+                f"{BASE_URL}/ping",
+                provider=NAME,
+                headers=self._headers,
+                endpoint="/ping",
+            )
+        except MarketDataError:
+            return KeyCheck.UNKNOWN
+        if response.status_code == 200:
+            return KeyCheck.ACCEPTED
+        if _key_rejected(response.status_code, _error_code(response.body)):
+            return KeyCheck.REJECTED
+        return KeyCheck.UNKNOWN
 
     def _get(self, path: str, params: dict[str, str]) -> JsonResponse:
         response = get_json(
-            self._client, f"{BASE_URL}{path}", provider=NAME, params=params, headers=self._headers
+            self._client,
+            f"{BASE_URL}{path}",
+            provider=NAME,
+            params=params,
+            headers=self._headers,
+            endpoint=_COIN_ID_PATH.sub("/coins/{id}", path),
         )
         code = _error_code(response.body)
         if code == HISTORY_RANGE_EXCEEDED:
             raise PriceUnavailableError(OLD_HISTORY_MESSAGE)
         if code == COIN_NOT_FOUND or response.status_code == 404:
             raise SymbolNotFoundError("CoinGecko doesn't know that coin.")
+        if _key_rejected(response.status_code, code):
+            if self._headers and not self._key_warned:
+                self._key_warned = True
+                logger.warning(
+                    "CoinGecko rejected the configured COINGECKO_DEMO_API_KEY (HTTP %s, error %s); "
+                    "uncached crypto requests will fail until it is fixed or removed.",
+                    response.status_code,
+                    code,
+                )
+            raise ProviderUnavailableError(KEY_REJECTED_MESSAGE)
         if response.status_code >= 400:
             raise ProviderUnavailableError(f"CoinGecko returned an error ({response.status_code}).")
         return response

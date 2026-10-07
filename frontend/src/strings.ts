@@ -352,7 +352,7 @@ export const t = {
   },
   disclaimer: [
     'Cost basis: average cost; buy fees add to cost, sell fees reduce proceeds. All amounts in USD.',
-    'Prices come from free third-party APIs (Finnhub, CoinGecko), are refreshed about once a minute and may be delayed.',
+    'Prices come from free third-party APIs (Finnhub, CoinGecko) and may be delayed: stock prices refresh about once a minute, crypto prices about every 5 minutes.',
     'For educational and personal tracking use only. Not financial advice.',
   ],
 }

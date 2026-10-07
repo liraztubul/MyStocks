@@ -316,15 +316,65 @@ CoinGecko responses on 2026-09-30.
 - **Rate limits.** The free Finnhub tier allows 60 calls/min, and keyless CoinGecko allows
   much less. Search is debounced (300ms) and cached for 1 hour. A rate-limited provider
   degrades to a message, never to stale data.
-- **Risk: CoinGecko's Demo plan is described as "for testing and exploration"** on its pricing
-  page (checked 2026-10-06; 100 calls/min, 10,000 calls/month). It also requires the
-  attribution "Data provided by CoinGecko" with a link to https://www.coingecko.com/en/api,
-  which the app footer shows. If the plan's terms tighten, the provider sits behind the
-  `MarketDataProvider` interface, so swapping it is a one-adapter change.
-- **Risk: an invalid CoinGecko Demo key fails silently.** The probe sent a bogus
-  `x-cg-demo-api-key` and got 200 at keyless limits, so a mistyped key in production would quietly
-  drop the app to the much lower keyless rate limit (429 after about 6 calls). Mitigation to
-  consider: a startup check that the key is accepted.
+- **CoinGecko Demo key (`COINGECKO_DEMO_API_KEY`, optional).**
+  - **How it's sent:** only as the `x-cg-demo-api-key` header, to `https://api.coingecko.com/api/v3`,
+    on every call: quotes, batch quotes, search and both history endpoints. This follows the Demo
+    authentication docs (docs.coingecko.com/demo/reference/authentication, read 2026-10-07).
+    The key is never put in a URL or a log.
+  - **Limits:** the pricing page (2026-10-07) says 100 calls/min and **10,000 call credits a
+    month**. The authentication docs say "each successful request (HTTP 200) deducts 1
+    credit". Keyless has no monthly cap, only about 10-30 calls/min that vary with server
+    load (keyless docs). So a key trades a per-minute limit for a monthly one.
+  - **Not verified:** what happens when the monthly credits run out. Keyed requests are
+    expected to fail for the rest of the month; the app would then serve stale prices.
+  - **Risk: the terms can change at any time.** The pricing page calls Demo a plan for
+    "testing and exploration". I couldn't find a "beta" label for it in the official docs or
+    terms. The API terms do say CoinGecko "may at any time make changes to the CoinGecko API
+    ... without any notice", and that rate and monthly limits "may be varied ... without
+    notice". If that bites, swapping the provider is a one-adapter change behind the
+    `MarketDataProvider` interface.
+  - **Attribution:** the pricing page requires "Data provided by CoinGecko" with a link,
+    which the app shows. The API terms instead say "Powered by CoinGecko". Worth asking which
+    one applies.
+  - **A bad key is detectable, with a caveat.** The earlier finding ("an invalid key is
+    silently ignored") came from CoinGecko's CDN: `/simple/price` responses are cached by
+    Cloudflare (`s-maxage=60`), and a cache hit never checks the key.
+    - **Probe, 2026-10-07, with a made-up key:** `/ping` (never cached) and an uncached
+      `/simple/price` both returned **401 with error 10002**; a cached `/simple/price`
+      returned 200 (`cf-cache-status: HIT`).
+    - **At startup** the API calls `/ping` with the key in a background thread (1 credit per
+      boot) and logs "accepted", "REJECTED" or "couldn't check", never the key.
+    - **During normal use** a rejected key on any call logs one warning and becomes
+      `provider_unavailable`, so prices go stale instead of silently looking fine.
+    - **Caveats:** the usage endpoint `/key` is for paid plans only, so remaining credits
+      can't be read from the API on Demo (only on the Developer Dashboard). A 200 from `/ping`
+      shows the key is accepted, not which plan it is on.
+  - **Budget:** crypto quotes are cached for `CRYPTO_QUOTE_TTL_SECONDS` (default 300), and the
+    watchlist polls every 5 minutes. Stocks keep their 60 s cache and the dashboard its 60 s
+    poll. The real CoinGecko budget is set by that TTL, not by polling; numbers are in
+    "Market data budget" below.
+  - **Measuring:** provider requests are counted per endpoint and outcome (`ok` = HTTP 200,
+    the billed kind; `cdn_hit`; error codes). They are logged about once an hour as
+    "Provider calls, last hour: ...; since start: ...". The counts are in memory, reset on
+    restart, and are not a substitute for the Developer Dashboard.
+- **Market data budget (CoinGecko, 30-day month = 43,200 minutes):**
+  - **Quotes:** the cache key is (ticker, coin id), shared by all users.
+    - The watchlist costs **one batched call per TTL** for its uncached coins.
+    - The dashboard costs **one call per crypto holding per TTL**; it isn't batched yet.
+    - Only the open page polls.
+  - **Other paths are small:** searches (~1 call per new query, cached 1 h), coin resolution
+    for unpicked tickers (1 `/search` per ticker per hour, only while unresolved), history
+    (about 1 call per coin per day once its closes are cached), and the startup `/ping`.
+  - **One watchlist tab:** 24/7 it was 43,200 calls a month at a 60 s TTL and is 8,640 at
+    300 s. Open 8 h a day, 14,400 and 2,880.
+  - **One dashboard tab with 3 crypto holdings:** 24/7 it was 129,600 and is 25,920. Open
+    8 h a day, 43,200 and 8,640.
+  - **5 users, watchlists open 8 h a day:** with the same coins, the shared cache keeps it
+    near one user's cost (~2,900). With entirely different coins, ~14,400. **Over the cap.**
+  - **Next steps if usage shows it's needed:** batch the dashboard's crypto quotes (3 holdings
+    -> 1 call); raise the TTL; fall back to keyless when the monthly credits are used up.
+    Whether CDN-cached responses cost a credit is not documented; compare the hourly counts with
+    the Developer Dashboard.
 - **Finnhub's plans are "strictly for personal use"**, with no sharing of data "with anyone or
   any 3rd party without written approval" (terms checked 2026-10-06). Finnhub doesn't require
   attribution. Showing stock data to other users is being gated behind an allowlist (M6a).

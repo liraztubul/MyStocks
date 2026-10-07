@@ -55,6 +55,7 @@ class FinnhubProvider:
             f"{BASE_URL}{path}",
             provider=NAME,
             params=params,
+            endpoint=path,
             # Header rather than the ?token= query param keeps the key out of URLs and logs.
             headers={"X-Finnhub-Token": self._api_key},
         )

@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -7,7 +8,7 @@ import httpx2
 from app.core.config import settings
 from app.domain.enums import AssetType
 from app.market_data.cache import CachedProvider
-from app.market_data.coingecko_provider import CoinGeckoProvider
+from app.market_data.coingecko_provider import CoinGeckoProvider, KeyCheck
 from app.market_data.finnhub_provider import FinnhubProvider
 from app.market_data.provider import AssetMatch, MarketDataError, MarketDataProvider
 
@@ -71,6 +72,36 @@ def shared_market_data() -> MarketData:
             AssetType.STOCK: CachedProvider(
                 FinnhubProvider(settings.finnhub_api_key, http_client())
             ),
-            AssetType.CRYPTO: CachedProvider(coingecko_provider()),
+            AssetType.CRYPTO: CachedProvider(
+                coingecko_provider(), live_ttl=settings.crypto_quote_ttl_seconds
+            ),
         }
     )
+
+
+logger = logging.getLogger(__name__)
+
+
+def check_coingecko_key() -> None:
+    """Logs whether CoinGecko accepts the configured Demo key, never the key itself. Meant for a
+    background thread at startup: it must not raise, and a failure only means "couldn't tell"."""
+    try:
+        provider = coingecko_provider()
+        if not provider.has_demo_key:
+            logger.info("CoinGecko: no Demo key configured; using the keyless API.")
+            return
+        result = provider.check_demo_key()
+    except Exception:
+        logger.warning("CoinGecko: the Demo key check failed unexpectedly; key status unknown.")
+        return
+    if result is KeyCheck.ACCEPTED:
+        logger.info("CoinGecko: Demo key configured and accepted.")
+    elif result is KeyCheck.REJECTED:
+        logger.warning(
+            "CoinGecko: COINGECKO_DEMO_API_KEY is configured but was REJECTED; uncached crypto "
+            "requests will fail until it is fixed or removed."
+        )
+    else:
+        logger.warning(
+            "CoinGecko: Demo key configured, but CoinGecko couldn't be reached to check it."
+        )
