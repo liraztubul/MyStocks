@@ -215,6 +215,8 @@ docker exec restore psql -U postgres -d restored -c "select count(*) from users;
 #    direct URL, then point DATABASE_URL at it. Delete the plaintext mystocks.dump afterwards.
 ```
 
+**Restore drill:** `scripts/restore-drill.sh` does steps 1–2 for you (latest artifact, decrypt, restore into a throwaway `postgres:18`, sanity checks); see [docs/restore.md](docs/restore.md).
+
 Tested: a dump made by this pipeline restored into Postgres 17 with identical row counts, Alembic version and a checksum over all transactions; re-tested on 2026-10-07 with the `postgres:18` client and a `postgres:18` restore target (against the local database, not Neon), again identical. (On Windows Git Bash, prefix the `docker exec` commands with `MSYS_NO_PATHCONV=1`.)
 
 ### Known limitations
