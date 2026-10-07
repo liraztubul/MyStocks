@@ -10,6 +10,7 @@ import { ThemeToggle } from './ThemeToggle'
 const LINKS: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: t.nav.dashboard, icon: 'dashboard' },
   { to: '/transactions', label: t.nav.transactions, icon: 'list' },
+  { to: '/watchlist', label: t.nav.watchlist, icon: 'eye' },
 ]
 
 // NavLink sets aria-current="page" on the active link, which the existing CSS styles. `end` keeps

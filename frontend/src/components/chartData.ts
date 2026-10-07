@@ -1,6 +1,7 @@
 import { t } from '../strings'
 
-// The ONLY place a price string becomes a JavaScript number. The chart library draws with
+// The only place a price string becomes a JavaScript number to draw with (formatQuotePrice also
+// reads one, only to choose a number of decimal places). The chart library draws with
 // floats, which is fine for pixels: a double keeps 15-17 significant digits, far below what a
 // pixel can show, and these numbers never flow back into a calculation or a request. Tables,
 // captions and tooltips keep using the API's exact strings.

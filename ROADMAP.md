@@ -16,23 +16,56 @@
 | M6a.1 | Real router (React Router), deep links, legacy `#/` redirect | Done |
 | M6a.g | Stock-data allowlist: one server-side gate for all stock market data | Done |
 | M6a | Asset page with a crypto price chart (router, gate, coin identity, cache, endpoint, chart) | Done |
+| W1 | Watchlist, crypto only: add/remove, batched prices with rolling 24h change, `/watchlist` page | Done |
 | M6b | Portfolio value over time; stock history (Tiingo) | Next |
 
-## Watchlist (planned, not started)
+## Watchlist (W1 done)
 
 A watched symbol is an asset you don't necessarily hold, so the per-asset page is
 `/assets/:symbol` and the M6a history endpoint already works without a position (see "Price
 history (M6a)" below). **All stock data stays behind `STOCK_DATA_ALLOWED_EMAILS`** in every
 phase: a blocked user can watch stocks, but sees them without prices, like a blocked holding.
 
-- **W1: the list.** Add and remove symbols; each row shows the price, daily change and a link to
-  the asset page. Needs a `watchlist_items` table (user, asset type, symbol, provider id) and
-  reuses the quote path and its cache, so a row costs what a holding costs.
-- **W2: a sparkline per row**, drawn from the `daily_closes` cache. **Design the request budget
-  first:** a list of N symbols can mean N history backfills on first view, and Tiingo's free
-  tier allows 50 requests/hour, 1,000/day and 500 symbols/month. Likely answers: serve only
-  what's cached, backfill lazily per visible row, and bring back the per-provider budget that
-  M6a dropped (see "Price history (M6a)").
+- **W1 (done): crypto only.**
+  - **Data:** `watchlist_items` (user, symbol) points at the symbol's `user_assets` record (a
+    composite foreign key), so the coin is decided once, in the same place as for trades.
+  - **API:** `GET/POST /api/watchlist`, `DELETE /api/watchlist/{symbol}`; both writes are
+    idempotent. The cap is 50 coins (409 `watchlist_full`).
+  - **Stocks:** a blocked user gets 403 `not_available_on_deployment` from the gate before any
+    provider call; an allowed user gets 422 `watchlist_crypto_only`.
+  - **Adding a coin:**
+    - An explicit coin id, or a coin already recorded for the ticker, needs no provider call.
+    - Otherwise the coin rules decide (422 `ambiguous_symbol` with candidates, 404, or 503
+      `provider_unavailable` / `rate_limited`).
+    - That lookup runs **before** the per-user write lock is taken, with no transaction open,
+      so the lock is never held across a network call. Everything is checked again under the
+      lock.
+  - **Prices:** the whole list is priced with **one batched** CoinGecko `/simple/price` call
+    for the coins not already cached (same 60 s cache and last-good fallback as holdings).
+    `change_pct` is CoinGecko's rolling 24 h change from that same response (`change_basis:
+    "24h_rolling"`), cached and marked stale together with the price. It is never measured
+    from a previous close.
+  - **Failure:** a failed price never fails the list. A row is stale (last good price, its
+    original time) or has `price: null` with a code and a reason.
+  - **Removing:** a watch keeps the `user_assets` record in use. Removing it deletes the record
+    only when no trades use it either.
+  - **Page:** `/watchlist`.
+    - Rows link to the asset page and show a 44 px remove button labelled with the ticker.
+    - Prices use the chart's precision rule, so micro-priced coins keep their digits.
+    - The 24 h change is shown with an arrow, a sign and colour.
+    - Each row shows "updated …" and a visible stale tag.
+    - The list polls every 60 s, paused while the tab is hidden.
+    - An ambiguous ticker opens the coin picker, which re-submits with the chosen id.
+- **W2 candidates:**
+  - **A sparkline per row**, drawn from the `daily_closes` cache. **Design the request budget
+    first:** a list of N symbols can mean N history backfills on first view, and Tiingo's free
+    tier allows 50 requests/hour, 1,000/day and 500 symbols/month. Likely answers: serve only
+    what's cached, backfill lazily per visible row, and bring back the per-provider budget
+    that M6a dropped (see "Price history (M6a)").
+  - **Ordering:** manual reordering or sorting; rows are in the order they were added.
+  - **Stocks**, after Tiingo (M6b), still behind `STOCK_DATA_ALLOWED_EMAILS`.
+  - **Coin names:** rows show the CoinGecko id (e.g. `simon-s-cat`), because batched quotes
+    carry no name and none is stored. Storing the name when the coin is picked would fix it.
 - **W3: reports**, starting with SEC EDGAR filings (public, keyless, with a published fair-access
   policy to follow) and an earnings calendar (provider to be chosen and its terms checked).
 - **Phase 2: news with Hebrew summaries**, only after provider licensing is checked: Finnhub's
@@ -135,8 +168,8 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   An automatic pick gives way to an explicit one. An ambiguous ticker without a pick is
   refused with 422 `ambiguous_symbol`, listing the candidates. If CoinGecko is down or doesn't
   know the ticker, the write still succeeds and the coin stays unknown until read time.
-- **When no trades use a symbol any more**, its record binds nothing: the next write starts it
-  over. That's the current way to fix a wrong coin or asset type (delete the trades and add
+- **When no trades use a symbol any more and it isn't watched**, its record binds nothing: the
+  next write starts it over. That's the current way to fix a wrong coin or asset type (delete the trades and add
   them again).
 - **Coin rules** (`app/market_data/coin_resolution.py`): auto-pick only an exact-ticker match
   ranked within `AUTOPICK_MAX_RANK` (100) whose rivals are unranked or at least
@@ -366,8 +399,15 @@ CoinGecko responses on 2026-09-30.
 - **Holdings switch from cards to a table at 1024px,** not the 768px first proposed. At tablet
   width the table pushed the P/L columns behind a sideways scroll. The other tables scroll
   inside their card with a sticky symbol column at every width.
-- **RTL readiness:** layout uses logical properties throughout, but no page has been rendered
-  with `dir="rtl"` yet.
+- **RTL readiness:** layout uses logical properties throughout. Only the watchlist page has been
+  rendered with `dir="rtl"` (W1, 360 and 1280 px, no horizontal scroll). That pass found a
+  bug: in RTL **dark** mode the theme toggle's thumb sits outside its track (light is right).
+  The `:dir(rtl) .segmented[data-active='1']` rule needs a look. English copy in RTL also
+  reorders punctuation ("of 50 3"); that goes away with Hebrew strings.
+- **Follow-up: the transaction write path holds the per-user lock across a CoinGecko call.**
+  `ensure_asset_identity` runs inside `_lock_ledger`, and a first unpicked crypto write calls
+  the provider's `get_quote` from there. The watchlist add was restructured to resolve
+  first and lock after (W1); transactions should get the same treatment.
 - **Follow-up: `npm audit` reports one high-severity advisory** in `source-map-js`
   (GHSA-68fv-2mgg-jv7q, denial of service through crafted source maps). It's a build-time
   dependency of the Vite toolchain and isn't shipped to the browser. Left alone on purpose

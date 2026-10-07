@@ -1,16 +1,31 @@
+export interface ErrorCandidate {
+  symbol: string
+  name: string
+  provider_id: string
+}
+
 export class ApiError extends Error {
   readonly status: number
   // Seconds to wait, from a 429's Retry-After header; null when absent or unparseable.
   readonly retryAfter: number | null
   // The backend's machine-readable reason, when it sends one (e.g. not_available_on_deployment).
   readonly code: string | null
+  // The coins to choose from, with an ambiguous_symbol 422.
+  readonly candidates: ErrorCandidate[] | null
 
-  constructor(status: number, message: string, retryAfter: number | null = null, code: string | null = null) {
+  constructor(
+    status: number,
+    message: string,
+    retryAfter: number | null = null,
+    code: string | null = null,
+    candidates: ErrorCandidate[] | null = null,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.retryAfter = retryAfter
     this.code = code
+    this.candidates = candidates
   }
 }
 
@@ -60,29 +75,42 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
-    const { message, code } = await errorBody(response)
-    throw new ApiError(response.status, message, parseRetryAfter(response.headers.get('Retry-After')), code)
+    const { message, code, candidates } = await errorBody(response)
+    const retryAfter = parseRetryAfter(response.headers.get('Retry-After'))
+    throw new ApiError(response.status, message, retryAfter, code, candidates)
   }
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
 
 // FastAPI returns {detail: string} for HTTPExceptions and {detail: [{msg}, ...]} for validation;
-// market-data errors add a {code}.
-async function errorBody(response: Response): Promise<{ message: string; code: string | null }> {
+// market-data errors add a {code}, and an ambiguous ticker its {candidates}.
+interface ErrorBody {
+  message: string
+  code: string | null
+  candidates: ErrorCandidate[] | null
+}
+
+async function errorBody(response: Response): Promise<ErrorBody> {
   const fallback = `Request failed (${response.status})`
   try {
-    const { detail, code } = (await response.json()) as { detail?: unknown; code?: unknown }
-    const reason = typeof code === 'string' ? code : null
-    if (typeof detail === 'string') return { message: detail, code: reason }
-    if (Array.isArray(detail)) {
-      return { message: detail.map((d: { msg?: string }) => d.msg ?? 'Invalid input').join('; '), code: reason }
+    const { detail, code, candidates } = (await response.json()) as {
+      detail?: unknown
+      code?: unknown
+      candidates?: unknown
     }
-    return { message: fallback, code: reason }
+    const reason = typeof code === 'string' ? code : null
+    const choices = Array.isArray(candidates) ? (candidates as ErrorCandidate[]) : null
+    if (typeof detail === 'string') return { message: detail, code: reason, candidates: choices }
+    if (Array.isArray(detail)) {
+      const message = detail.map((d: { msg?: string }) => d.msg ?? 'Invalid input').join('; ')
+      return { message, code: reason, candidates: choices }
+    }
+    return { message: fallback, code: reason, candidates: choices }
   } catch {
     // Non-JSON error body; fall through to the generic message.
   }
-  return { message: fallback, code: null }
+  return { message: fallback, code: null, candidates: null }
 }
 
 export function apiGet<T>(path: string): Promise<T> {

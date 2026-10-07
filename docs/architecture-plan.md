@@ -41,6 +41,7 @@ Living reference for whoever (Claude Code included) picks up work on this repo. 
   - **Mascot:** Ledgie, an original inline-SVG notebook. It is `aria-hidden` and coloured via CSS classes, never inline styles, so the CSP stays strict.
   - **Motion:** a big.js count-up once per load; a single SVG mask for the donut draw-in; a CSS-only springy theme thumb (data attribute, RTL-mirrored); playful shimmer. All of it is reduced-motion safe.
   - **Celebration:** a one-time first-entry celebration (0→1 in the session plus a `localStorage` flag), never tied to P/L.
+- Watchlist (W1): `watchlist_items` points at `user_assets` (composite FK), so coin identity has one source. The list is priced by one batched `CachedProvider.get_quotes` call (CoinGecko `/simple/price`, at most 500 ids per request); the rolling 24h change comes from the same response and goes stale with the price. Coin resolution for an add runs before the per-user write lock, never under it. Details in ROADMAP.md.
 - Oversell validation: replays a symbol's trade history in `executed_at` order (buys before sells at the same timestamp), not just a final-totals comparison — catches backdated sells. See `backend/app/domain/holdings.py`. Writes are serialized per-user via `SELECT ... FOR UPDATE` on the user row.
 
 ## Repo structure
@@ -75,6 +76,7 @@ MyStocks/
 | M6a.1 | Router: real paths, deep links, legacy `#/` redirect; asset page at `/assets/:symbol` (`/holdings/:symbol` redirects), build files under `/static/` | Done, verified locally; production checks by owner |
 | M6a.g | Stock-data allowlist (one server-side gate, default-deny) | Done, verified in browser |
 | M6a | Asset page with crypto price chart (history cache, coin identity, gated endpoint) | Done, verified in browser |
+| W1 | Watchlist, crypto only (batched prices, rolling 24h change, `/watchlist` page) | Done, verified in browser |
 | M6b | Portfolio value over time; stock history (Tiingo) | Next |
 | M7 | Polish + deploy | Not started |
 

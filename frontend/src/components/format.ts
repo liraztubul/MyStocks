@@ -1,5 +1,6 @@
 import Big from 'big.js'
 import { t } from '../strings'
+import { chartDecimals } from './chartData'
 
 function group(fixed: string): string {
   const [whole, fraction] = fixed.split('.')
@@ -11,6 +12,12 @@ function group(fixed: string): string {
 // Sub-dollar prices (most crypto) keep their digits; 2 places would show them as 0.00.
 export function formatPrice(value: string): string {
   return Big(value).abs().lt(1) ? value : group(Big(value).toFixed(2))
+}
+
+// A live quote, with the chart's precision rule: about four significant digits below 1 (a
+// micro-priced coin never shows as 0.00), two places from 1 up. Big rounds the exact string.
+export function formatQuotePrice(value: string): string {
+  return group(Big(value).toFixed(chartDecimals(Number(value))))
 }
 
 export function formatMoney(value: string): string {
@@ -50,4 +57,20 @@ export function formatSessionDate(iso: string): string {
     day: 'numeric',
     timeZone: 'America/New_York',
   })
+}
+
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+]
+
+// "3 minutes ago". A timestamp slightly ahead of this device's clock reads as just now.
+export function formatRelative(iso: string, now: number): string {
+  const seconds = Math.min(0, Math.round((new Date(iso).getTime() - now) / 1000))
+  const format = new Intl.RelativeTimeFormat(t.locale, { numeric: 'auto' })
+  for (const [unit, size] of RELATIVE_UNITS) {
+    if (-seconds >= size) return format.format(Math.trunc(seconds / size), unit)
+  }
+  return t.watchlist.justNow
 }

@@ -5,12 +5,12 @@ import { ApiError } from '../api/client'
 import {
   HISTORY_RANGES,
   type AssetHistory,
-  type CoinCandidate,
   type HistoryRange,
   type UndrawnReason,
 } from '../api/history'
 import type { AssetType } from '../api/transactions'
 import { formatDateTime, formatDay, formatPrice } from '../components/format'
+import { CoinPicker } from '../components/CoinPicker'
 import { FormError } from '../components/FormError'
 import { Icon } from '../components/Icon'
 import { PageHeading } from '../components/PageHeading'
@@ -99,7 +99,13 @@ function AssetBody({
   if (data.ambiguous) {
     return (
       <>
-        <CoinPicker symbol={symbol} candidates={data.candidates} body={t.asset.pickerBody} />
+        <CoinPicker
+          symbol={symbol}
+          candidates={data.candidates}
+          body={t.asset.pickerBody}
+          note={t.asset.pickerNote(symbol)}
+          pickHref={pickHref}
+        />
         <TradesTable data={data} />
       </>
     )
@@ -221,47 +227,6 @@ function ChartFigure({ data, symbol }: { data: AssetHistory; symbol: string }) {
   )
 }
 
-// showRank: the history endpoint returns market-cap ranks; search results don't, and showing
-// them as "unranked" would be false.
-function CoinPicker({
-  symbol,
-  candidates,
-  body,
-  showRank = true,
-}: {
-  symbol: string
-  candidates: CoinCandidate[]
-  body: string
-  showRank?: boolean
-}) {
-  return (
-    <div className="coin-picker">
-      <h3>{t.asset.pickerTitle(symbol)}</h3>
-      <p className="muted">{body}</p>
-      {candidates.length === 0 ? (
-        <p className="muted">{t.asset.noCandidates}</p>
-      ) : (
-        <ul className="picker-list">
-          {candidates.map((c) => (
-            <li key={c.id}>
-              <Link className="picker-item" to={`?type=crypto&id=${encodeURIComponent(c.id)}`}>
-                <span className="picker-name">
-                  {c.name} <span className="muted">({c.symbol})</span>
-                </span>
-                <span className="picker-meta muted">
-                  {c.id}
-                  {showRank && <> · {c.rank !== null ? t.asset.rank(c.rank) : t.asset.unranked}</>}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="hint">{t.asset.pickerNote(symbol)}</p>
-    </div>
-  )
-}
-
 // "Not this one?": the coins search finds for the ticker, exact matches first.
 function SearchPicker({ symbol }: { symbol: string }) {
   const search = useAssetSearch(symbol)
@@ -270,8 +235,19 @@ function SearchPicker({ symbol }: { symbol: string }) {
   const exactFirst = [...coins].sort((a, b) => Number(b.symbol === symbol) - Number(a.symbol === symbol))
   const candidates = exactFirst.map((c) => ({ id: c.provider_id, symbol: c.symbol, name: c.name, rank: null }))
   return (
-    <CoinPicker symbol={symbol} candidates={candidates} body={t.asset.pickerSearchBody} showRank={false} />
+    <CoinPicker
+      symbol={symbol}
+      candidates={candidates}
+      body={t.asset.pickerSearchBody}
+      note={t.asset.pickerNote(symbol)}
+      showRank={false}
+      pickHref={pickHref}
+    />
   )
+}
+
+function pickHref(id: string): string {
+  return `?type=crypto&id=${encodeURIComponent(id)}`
 }
 
 function TypeChooser({ symbol }: { symbol: string }) {

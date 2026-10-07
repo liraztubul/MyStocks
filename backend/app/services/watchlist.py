@@ -19,7 +19,6 @@ from app.market_data.provider import CoinRef, MarketDataError, Quote
 from app.services.asset_identity import (
     CONFLICT_CODE,
     RULE,
-    USER,
     asset_in_use,
     ensure_asset_identity,
     lock_user_writes,
@@ -52,6 +51,40 @@ def _resolve_by_rules(market_data: UserMarketData, symbol: str) -> str:
     return quote.coin_id
 
 
+def _checked_state(
+    db: Session, user_id: uuid.UUID, symbol: str
+) -> tuple[WatchlistItem | None, UserAsset | None]:
+    """The watch and identity record for `symbol`, after the checks that refuse an add."""
+    existing = db.get(WatchlistItem, (user_id, symbol))
+    record = db.get(UserAsset, (user_id, symbol))
+    if existing is None:
+        count = db.scalar(select(func.count()).where(WatchlistItem.user_id == user_id)) or 0
+        if count >= MAX_ITEMS:
+            raise CodedHTTPError(
+                status.HTTP_409_CONFLICT,
+                FULL_CODE,
+                f"The watchlist holds up to {MAX_ITEMS} coins. Remove one to add another.",
+            )
+    if (
+        record is not None
+        and record.asset_type is not AssetType.CRYPTO
+        and asset_in_use(db, user_id, symbol)
+    ):
+        raise CodedHTTPError(
+            status.HTTP_409_CONFLICT,
+            CONFLICT_CODE,
+            f"Your {symbol} entries are recorded as a stock, so it can't be watched as a coin.",
+        )
+    return existing, record
+
+
+def _needs_rules(record: UserAsset | None, picked_id: str | None) -> bool:
+    """Whether only the coin rules (a provider call) can say which coin is meant."""
+    return not picked_id and (
+        record is None or record.asset_type is not AssetType.CRYPTO or not record.provider_id
+    )
+
+
 def add(
     db: Session,
     market_data: UserMarketData,
@@ -68,48 +101,32 @@ def add(
             CRYPTO_ONLY_CODE,
             "Only crypto can be watched for now.",
         )
+
+    # Check and resolve without the lock or an open transaction, so no lock is held across the
+    # provider call; everything is checked again under the lock below.
+    _, record = _checked_state(db, user_id, symbol)
+    resolve = _needs_rules(record, picked_id)
+    db.rollback()
+    coin_id = _resolve_by_rules(market_data, symbol) if resolve else None
+
     lock_user_writes(db, user_id)
+    existing, record = _checked_state(db, user_id, symbol)
+    if coin_id is None and _needs_rules(record, picked_id):
+        # The recorded coin went away (a concurrent remove) between the check and the lock.
+        db.rollback()
+        return add(db, market_data, user_id, symbol, asset_type, picked_id)
 
-    existing = db.get(WatchlistItem, (user_id, symbol))
-    record = db.get(UserAsset, (user_id, symbol))
-    if existing is not None and (
-        picked_id is None or record is None or picked_id == record.provider_id
-    ):
-        # Adding twice is a no-op, except that picking the coin the rules chose confirms it.
-        if picked_id and record is not None and record.id_source == RULE:
-            record.id_source = USER
-            db.commit()
-        return existing
-    if existing is None:
-        count = db.scalar(select(func.count()).where(WatchlistItem.user_id == user_id)) or 0
-        if count >= MAX_ITEMS:
-            raise CodedHTTPError(
-                status.HTTP_409_CONFLICT,
-                FULL_CODE,
-                f"The watchlist holds up to {MAX_ITEMS} coins. Remove one to add another.",
-            )
-
-    stock_conflict = CodedHTTPError(
-        status.HTTP_409_CONFLICT,
-        CONFLICT_CODE,
-        f"Your {symbol} entries are recorded as a stock, so it can't be watched as a coin.",
-    )
     if record is not None and record.asset_type is not AssetType.CRYPTO:
-        if asset_in_use(db, user_id, symbol):
-            raise stock_conflict
         # An old stock meaning nothing uses any more binds nothing (the asset_identity rule).
         db.delete(record)
         db.flush()
         record = None
 
     if picked_id:
-        # An explicit pick: no provider call. 409 if it contradicts the user's own earlier pick.
+        # No provider call; 409 if it contradicts the user's own earlier pick, and picking the
+        # coin the rules chose confirms it.
         ensure_asset_identity(db, market_data, user_id, symbol, AssetType.CRYPTO, picked_id)
-    elif record is not None and record.provider_id:
-        pass  # The coin is already known: no provider call, even if CoinGecko is down.
-    else:
-        # Nothing says which coin yet: the rules decide, which needs the provider.
-        coin_id = _resolve_by_rules(market_data, symbol)
+    elif coin_id is not None and (record is None or not record.provider_id):
         if record is None:
             db.add(
                 UserAsset(

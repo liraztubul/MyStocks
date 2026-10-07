@@ -18,6 +18,7 @@ import { t } from './strings'
 // and error screens only ever show before the first answer.
 // Its own chunk: the asset page will carry the chart library, which other pages don't need.
 const AssetPage = lazy(() => import('./pages/AssetPage'))
+const WatchlistPage = lazy(() => import('./pages/WatchlistPage'))
 
 // The page was /holdings/:symbol before it covered assets you don't hold; old links still work.
 function LegacyHoldingRedirect() {
@@ -48,6 +49,14 @@ export function App() {
             element={
               <Suspense fallback={<RowsSkeleton rows={4} />}>
                 <AssetPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/watchlist"
+            element={
+              <Suspense fallback={<RowsSkeleton rows={4} />}>
+                <WatchlistPage />
               </Suspense>
             }
           />
