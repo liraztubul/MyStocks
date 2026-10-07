@@ -6,7 +6,7 @@ import pytest
 from app.core.config import settings
 from app.domain.enums import AssetType
 from app.market_data.access import StockDataNotAvailableError, UserMarketData, stock_data_allowed
-from app.market_data.provider import AssetMatch, PriceOnDate, Quote
+from app.market_data.provider import AssetMatch, CoinRef, PriceOnDate, Quote
 from app.market_data.service import MarketData
 
 
@@ -97,3 +97,17 @@ def test_allowed_user_passes_through() -> None:
         AssetType.CRYPTO,
     }
     assert stocks.calls == 2
+
+
+def test_blocked_user_cannot_batch_price_stocks_and_no_provider_is_touched() -> None:
+    gated, stocks, _ = _gated(allowed=False)
+    with pytest.raises(StockDataNotAvailableError):
+        gated.get_quotes(AssetType.STOCK, [CoinRef("AAPL", "AAPL")])
+    assert stocks.calls == 0
+
+
+def test_batch_crypto_quotes_pass_through_the_gate() -> None:
+    gated, _, crypto = _gated(allowed=False)
+    results = gated.get_quotes(AssetType.CRYPTO, [CoinRef("bitcoin", "BTC")])
+    assert results["bitcoin"].price == Decimal("1")  # type: ignore[union-attr]
+    assert crypto.calls == 1

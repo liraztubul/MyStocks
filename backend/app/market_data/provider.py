@@ -108,6 +108,23 @@ class ProviderUnavailableError(MarketDataError):
     code = "provider_unavailable"
 
 
+@dataclass(frozen=True)
+class CoinRef:
+    """A coin to price in a batch: the provider's id, and the user's ticker for display."""
+
+    coin_id: str
+    symbol: str
+
+
+class BatchQuoteProvider(Protocol):
+    """Many quotes in one provider call (CoinGecko /simple/price takes up to 515 ids)."""
+
+    def get_quotes(self, coins: Sequence[CoinRef]) -> dict[str, Quote]:
+        """Quotes keyed by coin id. An id the provider doesn't know is simply absent; a failure
+        of the whole call raises MarketDataError."""
+        ...
+
+
 class MarketDataProvider(Protocol):
     def search(self, query: str) -> list[AssetMatch]: ...
 

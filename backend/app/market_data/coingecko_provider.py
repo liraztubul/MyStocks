@@ -1,5 +1,5 @@
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
@@ -21,6 +21,7 @@ from app.market_data.http import JsonResponse, get_json
 from app.market_data.provider import (
     AmbiguousSymbolError,
     AssetMatch,
+    CoinRef,
     PriceKind,
     PriceOnDate,
     PriceUnavailableError,
@@ -39,6 +40,7 @@ MAX_SEARCH_RESULTS = 8
 # How long a ticker -> coin resolution is reused: holdings re-price every minute, and resolving
 # costs a /search call each time otherwise. A coin's rank doesn't swing within an hour.
 RESOLUTION_TTL_SECONDS = 3600
+MAX_IDS_PER_CALL = 500
 # CoinGecko error_code values (returned inside the JSON body).
 HISTORY_RANGE_EXCEEDED = 10012
 COIN_NOT_FOUND = 10013
@@ -132,20 +134,43 @@ class CoinGeckoProvider:
             raise AmbiguousSymbolError(result.symbol, result.candidates)
         return result.coin_id, result.name, True
 
-    def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
-        coin_id, coin_name, auto_picked = self._coin(symbol, provider_id)
-        body = self._get(
+    def _simple_prices(self, coin_ids: Sequence[str]) -> dict[str, Any]:
+        return self._get(
             "/simple/price",
             {
-                "ids": coin_id,
+                "ids": ",".join(coin_ids),
                 "vs_currencies": "usd",
                 "include_last_updated_at": "true",
                 "include_24hr_change": "true",
             },
         ).body
-        entry = body.get(coin_id)
+
+    def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
+        coin_id, coin_name, auto_picked = self._coin(symbol, provider_id)
+        entry = self._simple_prices([coin_id]).get(coin_id)
         if not entry or "usd" not in entry:
             raise SymbolNotFoundError(f"No USD price for {symbol.upper()} on CoinGecko.")
+        return self._quote(symbol, coin_id, entry, coin_name, auto_picked)
+
+    def get_quotes(self, coins: Sequence[CoinRef]) -> dict[str, Quote]:
+        # Documented limit (checked 2026-10-07): 515 ids per request. Chunked below it; a
+        # watchlist (max 50 coins) is always one call.
+        quotes: dict[str, Quote] = {}
+        for start in range(0, len(coins), MAX_IDS_PER_CALL):
+            chunk = coins[start : start + MAX_IDS_PER_CALL]
+            # Verified by probe: an unknown id is left out of a 200 response, not an error.
+            body = self._simple_prices([c.coin_id for c in chunk])
+            for coin in chunk:
+                entry = body.get(coin.coin_id)
+                if entry and "usd" in entry:
+                    quotes[coin.coin_id] = self._quote(
+                        coin.symbol, coin.coin_id, entry, None, False
+                    )
+        return quotes
+
+    def _quote(
+        self, symbol: str, coin_id: str, entry: dict[str, Any], coin_name: str | None, auto: bool
+    ) -> Quote:
         updated = entry.get("last_updated_at")
         price = Decimal(entry["usd"])
         as_of = datetime.fromtimestamp(int(updated), tz=timezone.utc) if updated else self._now()
@@ -163,7 +188,7 @@ class CoinGeckoProvider:
             reference_kind=ReferenceKind.ROLLING_24H if reference is not None else None,
             coin_id=coin_id,
             coin_name=coin_name,
-            coin_auto_picked=auto_picked,
+            coin_auto_picked=auto,
         )
 
     # --- Daily history (DailyHistoryProvider) ----------------------------------------------------

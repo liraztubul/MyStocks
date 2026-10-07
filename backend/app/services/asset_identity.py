@@ -11,7 +11,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import CodedHTTPError
-from app.db.models import Transaction, UserAsset
+from app.db.models import Transaction, UserAsset, WatchlistItem
 from app.domain.enums import AssetType
 from app.market_data.access import UserMarketData
 from app.market_data.provider import AmbiguousSymbolError, MarketDataError
@@ -25,13 +25,18 @@ def _conflict(detail: str) -> CodedHTTPError:
     return CodedHTTPError(status.HTTP_409_CONFLICT, CONFLICT_CODE, detail)
 
 
-def _has_trades(db: Session, user_id: uuid.UUID, symbol: str, excluding: uuid.UUID | None) -> bool:
-    query = select(Transaction.id).where(
+def _in_use(db: Session, user_id: uuid.UUID, symbol: str, excluding: uuid.UUID | None) -> bool:
+    """Whether anything still relies on the symbol's recorded meaning: a trade (other than the
+    one being edited) or a watchlist entry, which points at the record and has no trades."""
+    trades = select(Transaction.id).where(
         Transaction.user_id == user_id, Transaction.symbol == symbol
     )
     if excluding is not None:
-        query = query.where(Transaction.id != excluding)
-    return bool(db.scalar(select(exists(query))))
+        trades = trades.where(Transaction.id != excluding)
+    watched = select(WatchlistItem.symbol).where(
+        WatchlistItem.user_id == user_id, WatchlistItem.symbol == symbol
+    )
+    return bool(db.scalar(select(exists(trades)))) or bool(db.scalar(select(exists(watched))))
 
 
 def _identify(
@@ -71,8 +76,8 @@ def ensure_asset_identity(
     is the transaction being changed, which doesn't count as an existing use of the symbol.
     """
     record = db.get(UserAsset, (user_id, symbol))
-    if record is not None and not _has_trades(db, user_id, symbol, editing):
-        # Nothing uses the old meaning any more (all its trades were deleted or moved), so it
+    if record is not None and not _in_use(db, user_id, symbol, editing):
+        # Nothing uses the old meaning any more (no trades, not watched), so it
         # binds nothing: this is also how a wrong asset type or coin gets fixed for now.
         db.delete(record)
         db.flush()

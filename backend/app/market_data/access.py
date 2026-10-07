@@ -13,6 +13,7 @@ Error convention for "not available on this deployment" (code `not_available_on_
   deployment, not a failure.
 """
 
+from collections.abc import Sequence
 from datetime import date, datetime
 from typing import Annotated
 
@@ -26,6 +27,7 @@ from app.domain.enums import AssetType
 from app.market_data.price_history import HistoryResult, PriceHistoryService, shared_price_history
 from app.market_data.provider import (
     AssetMatch,
+    CoinRef,
     MarketDataError,
     MarketDataProvider,
     PriceOnDate,
@@ -73,6 +75,24 @@ class UserMarketData:
         if asset_type is AssetType.STOCK and not self.stock_data_available:
             return _StocksNotAvailable()
         return self._shared.provider(asset_type)
+
+    def get_quotes(
+        self, asset_type: AssetType, coins: Sequence[CoinRef]
+    ) -> dict[str, Quote | MarketDataError]:
+        """Batch quotes, keyed by provider id, each a quote or the reason there is none."""
+        if asset_type is AssetType.STOCK and not self.stock_data_available:
+            # Before any provider or cache is touched, like single quotes.
+            raise StockDataNotAvailableError()
+        provider = self._shared.provider(asset_type)
+        if hasattr(provider, "get_quotes"):
+            return provider.get_quotes(coins)  # type: ignore[no-any-return]
+        results: dict[str, Quote | MarketDataError] = {}
+        for coin in coins:
+            try:
+                results[coin.coin_id] = provider.get_quote(coin.symbol, coin.coin_id)
+            except MarketDataError as exc:
+                results[coin.coin_id] = exc
+        return results
 
     def search(self, query: str) -> SearchResult:
         if self.stock_data_available:

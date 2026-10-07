@@ -1,6 +1,6 @@
 import threading
 import time
-from collections.abc import Callable, Hashable, MutableMapping
+from collections.abc import Callable, Hashable, MutableMapping, Sequence
 from dataclasses import replace
 from datetime import date
 from typing import Any, TypeVar, cast
@@ -9,12 +9,16 @@ from cachetools import LRUCache, TTLCache
 
 from app.market_data.provider import (
     AssetMatch,
+    BatchQuoteProvider,
+    CoinRef,
+    MarketDataError,
     MarketDataProvider,
     PriceKind,
     PriceOnDate,
     ProviderUnavailableError,
     Quote,
     RateLimitedError,
+    SymbolNotFoundError,
 )
 
 LIVE_TTL_SECONDS = 60
@@ -99,6 +103,60 @@ class CachedProvider:
             self._live[key] = quote
             self._last_good[key] = quote
         return quote
+
+    def get_quotes(self, coins: Sequence[CoinRef]) -> dict[str, Quote | MarketDataError]:
+        """A quote, or the reason there is none, per coin id: one provider call for every coin
+        not already cached, with the same per-coin stale fallback as get_quote."""
+        results: dict[str, Quote | MarketDataError] = {}
+        missing: list[CoinRef] = []
+        # Same keys as get_quote, so a single quote and a batch share one cache.
+        key = {c.coin_id: ("quote", c.symbol.upper(), c.coin_id) for c in coins}
+        with self._lock:
+            for coin in coins:
+                if key[coin.coin_id] in self._live:
+                    results[coin.coin_id] = cast(Quote, self._live[key[coin.coin_id]])
+                else:
+                    missing.append(coin)
+        if not missing:
+            return results
+        try:
+            fetched = self._fetch_batch(missing)
+        except (ProviderUnavailableError, RateLimitedError) as exc:
+            with self._lock:
+                for coin in missing:
+                    last_good = self._last_good.get(key[coin.coin_id])
+                    if last_good is None:
+                        results[coin.coin_id] = exc
+                    else:
+                        stale = replace(last_good, is_stale=True)
+                        self._live[key[coin.coin_id]] = stale
+                        results[coin.coin_id] = stale
+            return results
+        with self._lock:
+            for coin in missing:
+                quote = fetched.get(coin.coin_id)
+                if quote is None:
+                    # Unknown to the provider: never masked with an old price.
+                    results[coin.coin_id] = SymbolNotFoundError(
+                        f"No USD price for {coin.symbol.upper()} on this provider."
+                    )
+                    continue
+                self._live[key[coin.coin_id]] = quote
+                self._last_good[key[coin.coin_id]] = quote
+                results[coin.coin_id] = quote
+        return results
+
+    def _fetch_batch(self, coins: list[CoinRef]) -> dict[str, Quote]:
+        if hasattr(self._inner, "get_quotes"):
+            return cast(BatchQuoteProvider, self._inner).get_quotes(coins)
+        # A provider without batching: one call per coin (not used by any crypto provider today).
+        quotes = {}
+        for coin in coins:
+            try:
+                quotes[coin.coin_id] = self._inner.get_quote(coin.symbol, coin.coin_id)
+            except SymbolNotFoundError:
+                continue
+        return quotes
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:
         return self._get_or_fetch(
