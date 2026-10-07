@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import CodedHTTPError
 from app.core.security import CurrentUser
-from app.db.models import Transaction, User
+from app.db.models import Transaction
 from app.db.session import DbSession
 from app.domain.enums import Side
 from app.domain.holdings import find_oversell
@@ -16,14 +16,9 @@ from app.market_data.provider import MarketDataError
 from app.schemas.decimal import format_decimal
 from app.schemas.transaction import TransactionCreate, TransactionRead, TransactionUpdate
 from app.services.asset_identity import ensure_asset_identity
+from app.services.asset_identity import lock_user_writes as _lock_ledger
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
-
-
-def _lock_ledger(db: Session, user_id: uuid.UUID) -> None:
-    # Serializes a user's writes so two concurrent sells can't both pass the oversell check
-    # against the same holdings.
-    db.execute(select(User.id).where(User.id == user_id).with_for_update())
 
 
 def _get_owned(db: Session, user_id: uuid.UUID, transaction_id: uuid.UUID) -> Transaction:

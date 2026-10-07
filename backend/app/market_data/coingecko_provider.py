@@ -176,7 +176,8 @@ class CoinGeckoProvider:
         as_of = datetime.fromtimestamp(int(updated), tz=timezone.utc) if updated else self._now()
         # CoinGecko returns null for the 24h change when its data is stale; no base then.
         change_pct = entry.get("usd_24h_change")
-        reference = None if change_pct is None else price_before_change(price, Decimal(change_pct))
+        change = None if change_pct is None else Decimal(change_pct)
+        reference = None if change is None else price_before_change(price, change)
         return Quote(
             symbol=symbol.upper(),
             asset_type=AssetType.CRYPTO,
@@ -189,6 +190,7 @@ class CoinGeckoProvider:
             coin_id=coin_id,
             coin_name=coin_name,
             coin_auto_picked=auto,
+            change_24h_pct=change,
         )
 
     # --- Daily history (DailyHistoryProvider) ----------------------------------------------------

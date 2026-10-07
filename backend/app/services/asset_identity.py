@@ -11,7 +11,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import CodedHTTPError
-from app.db.models import Transaction, UserAsset, WatchlistItem
+from app.db.models import Transaction, User, UserAsset, WatchlistItem
 from app.domain.enums import AssetType
 from app.market_data.access import UserMarketData
 from app.market_data.provider import AmbiguousSymbolError, MarketDataError
@@ -25,7 +25,15 @@ def _conflict(detail: str) -> CodedHTTPError:
     return CodedHTTPError(status.HTTP_409_CONFLICT, CONFLICT_CODE, detail)
 
 
-def _in_use(db: Session, user_id: uuid.UUID, symbol: str, excluding: uuid.UUID | None) -> bool:
+def lock_user_writes(db: Session, user_id: uuid.UUID) -> None:
+    """Serializes one user's ledger and watchlist writes (a row lock on the user), so checks such
+    as oversell, identity and the watchlist cap can't race with a concurrent write."""
+    db.execute(select(User.id).where(User.id == user_id).with_for_update())
+
+
+def asset_in_use(
+    db: Session, user_id: uuid.UUID, symbol: str, excluding: uuid.UUID | None = None
+) -> bool:
     """Whether anything still relies on the symbol's recorded meaning: a trade (other than the
     one being edited) or a watchlist entry, which points at the record and has no trades."""
     trades = select(Transaction.id).where(
@@ -76,7 +84,7 @@ def ensure_asset_identity(
     is the transaction being changed, which doesn't count as an existing use of the symbol.
     """
     record = db.get(UserAsset, (user_id, symbol))
-    if record is not None and not _in_use(db, user_id, symbol, editing):
+    if record is not None and not asset_in_use(db, user_id, symbol, editing):
         # Nothing uses the old meaning any more (no trades, not watched), so it
         # binds nothing: this is also how a wrong asset type or coin gets fixed for now.
         db.delete(record)

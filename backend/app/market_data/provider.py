@@ -47,6 +47,9 @@ class Quote:
     coin_id: str | None = None
     coin_name: str | None = None
     coin_auto_picked: bool = False
+    # Crypto: the provider's rolling 24h change in percent, from the same response as the price,
+    # so a stale quote carries the change that went with its price and as_of.
+    change_24h_pct: Decimal | None = None
 
 
 class PriceKind(str, Enum):
