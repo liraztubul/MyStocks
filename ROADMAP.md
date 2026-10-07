@@ -395,7 +395,9 @@ CoinGecko responses on 2026-09-30.
   - Vercel passes `Set-Cookie` through `routes` with an external `dest`, and keeps the query
     string (needed by `?symbol=`, `?q=`, `?date=`);
   - the shape of `X-Forwarded-For` as Render receives it;
-  - Neon's Postgres major version matching the `postgres:17` dump client;
+  - Neon's Postgres major version matching the dump client: it didn't (Neon runs 18.6, the
+    client was 17), and the backup failed; the client is now `postgres:18` with a version check
+    that fails with a clear message if Neon moves ahead again (2026-10-07);
   - whether Render counts spin-up time toward instance hours.
 - **Migrations must stay backward-compatible** (expand then contract), because the old
   instance serves while the new one migrates.

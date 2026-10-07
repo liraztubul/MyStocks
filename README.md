@@ -194,7 +194,7 @@ The value must match on both sides, so rotate in this order to avoid 403s:
 ### Backups and restore
 
 `.github/workflows/backup.yml` runs daily (and on demand via *Run workflow*):
-- `pg_dump --format=custom` from the Neon direct URL, using the `postgres:17` image;
+- `pg_dump --format=custom` from the Neon direct URL, using the `postgres:18` image (`PG_CLIENT_IMAGE` in the workflow). pg_dump refuses a server newer than itself, so this must be at least Neon's major version (Neon runs PostgreSQL 18); the workflow checks both versions first and fails with a clear message if Neon moves ahead;
 - piped straight into `gpg --symmetric --cipher-algo AES256`, so plaintext never touches the runner's disk;
 - uploaded as an artifact kept for **14 days**.
 
@@ -205,8 +205,8 @@ Restore:
 gh run download <run-id> --name mystocks-db-<run-id>
 gpg --decrypt --output mystocks.dump mystocks.dump.gpg        # prompts for BACKUP_PASSPHRASE
 
-# 2. Restore into a throwaway Postgres 17 first and check it.
-docker run -d --name restore -e POSTGRES_PASSWORD=restore -e POSTGRES_DB=restored postgres:17
+# 2. Restore into a throwaway Postgres 18 (the same major version as the dump client) and check it.
+docker run -d --name restore -e POSTGRES_PASSWORD=restore -e POSTGRES_DB=restored postgres:18
 docker cp mystocks.dump restore:/tmp/mystocks.dump
 docker exec restore pg_restore --no-owner --no-privileges --exit-on-error -U postgres -d restored /tmp/mystocks.dump
 docker exec restore psql -U postgres -d restored -c "select count(*) from users; select count(*) from transactions;"
@@ -215,7 +215,7 @@ docker exec restore psql -U postgres -d restored -c "select count(*) from users;
 #    direct URL, then point DATABASE_URL at it. Delete the plaintext mystocks.dump afterwards.
 ```
 
-Tested: a dump made by exactly this pipeline restored into Postgres 17 with identical row counts, Alembic version and a checksum over all transactions. (On Windows Git Bash, prefix the `docker exec` commands with `MSYS_NO_PATHCONV=1`.)
+Tested: a dump made by this pipeline restored into Postgres 17 with identical row counts, Alembic version and a checksum over all transactions; re-tested on 2026-10-07 with the `postgres:18` client and a `postgres:18` restore target (against the local database, not Neon), again identical. (On Windows Git Bash, prefix the `docker exec` commands with `MSYS_NO_PATHCONV=1`.)
 
 ### Known limitations
 
@@ -228,7 +228,7 @@ Tested: a dump made by exactly this pipeline restored into Postgres 17 with iden
 
 ### First-time setup checklist
 
-1. **Neon**: create a project in **AWS Europe Central 1 (Frankfurt)** with **Postgres 17**. Copy the **direct** connection string (Connection details with *Connection pooling* switched **off**). It must end in `?sslmode=require`.
+1. **Neon**: create a project in **AWS Europe Central 1 (Frankfurt)** with **Postgres 18** (the existing project runs 18; the backup's `pg_dump` must be at least the server's major version). Copy the **direct** connection string (Connection details with *Connection pooling* switched **off**). It must end in `?sslmode=require`.
 2. **Render**: New → Blueprint → select this repo. Render reads `render.yaml`; when prompted, paste:
    - `DATABASE_URL`: the Neon direct string;
    - `FINNHUB_API_KEY`;

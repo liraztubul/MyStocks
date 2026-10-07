@@ -35,12 +35,23 @@ jobs:
         env:
           NEON_DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          # pg_dump refuses a server newer than itself, so this must be at least Neon's major
+          # version (Neon runs PostgreSQL 18). Only the backup client; CI's test database is separate.
+          PG_CLIENT_IMAGE: postgres:18
         run: |
           set -euo pipefail
           gpg --version | head -1
-          # pg_dump must be at least the server's major version; keep this in step with Neon's.
           # The URL travels as an env var into the container, never as a logged argument.
-          docker run --rm -e PGURL="$NEON_DIRECT_URL" postgres:17 \
+          client=$(docker run --rm "$PG_CLIENT_IMAGE" pg_dump --version | grep -oE '[0-9]+' | head -1)
+          server_num=$(docker run --rm -e PGURL="$NEON_DIRECT_URL" "$PG_CLIENT_IMAGE" \
+              sh -c 'psql "$PGURL" -tAc "SHOW server_version_num"')
+          server=$((server_num / 10000))
+          echo "pg_dump client major: ${client}; Neon server major: ${server}"
+          if [ "$server" -gt "$client" ]; then
+            echo "::error::Neon runs PostgreSQL ${server} but pg_dump is ${client}. Set PG_CLIENT_IMAGE in .github/workflows/backup.yml to postgres:${server} (and update the restore steps in README.md)."
+            exit 1
+          fi
+          docker run --rm -e PGURL="$NEON_DIRECT_URL" "$PG_CLIENT_IMAGE" \
               sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' \
             | gpg --batch --yes --symmetric --cipher-algo AES256 \
                 --pinentry-mode loopback --passphrase-fd 3 \
