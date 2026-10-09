@@ -119,6 +119,23 @@ class CoinRef:
     symbol: str
 
 
+@dataclass(frozen=True)
+class CoinListing:
+    """One coin in a top-coins list (the coin index): no price, just what names it."""
+
+    provider_id: str
+    symbol: str
+    name: str
+    # None when the provider lists the coin without a rank (seen on the second page of 250).
+    market_cap_rank: int | None
+
+
+class CoinListProvider(Protocol):
+    def top_coins(self, limit: int) -> list[CoinListing]:
+        """The `limit` largest coins by market cap, largest first. Raises MarketDataError."""
+        ...
+
+
 class BatchQuoteProvider(Protocol):
     """Many quotes in one provider call (CoinGecko /simple/price takes up to 515 ids)."""
 

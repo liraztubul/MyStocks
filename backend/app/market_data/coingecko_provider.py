@@ -24,6 +24,7 @@ from app.market_data.http import JsonResponse, get_json
 from app.market_data.provider import (
     AmbiguousSymbolError,
     AssetMatch,
+    CoinListing,
     CoinRef,
     MarketDataError,
     PriceKind,
@@ -47,6 +48,9 @@ MAX_SEARCH_RESULTS = 8
 # costs a /search call each time otherwise. A coin's rank doesn't swing within an hour.
 RESOLUTION_TTL_SECONDS = 3600
 MAX_IDS_PER_CALL = 500
+# /coins/markets: documented max per_page is 250 (checked 2026-10-09). A probe that day showed
+# that per_page=251 isn't refused: it silently falls back to the default page of 100.
+MARKETS_PAGE_SIZE = 250
 # CoinGecko error_code values (returned inside the JSON body).
 HISTORY_RANGE_EXCEEDED = 10012
 COIN_NOT_FOUND = 10013
@@ -54,7 +58,8 @@ COIN_NOT_FOUND = 10013
 # (also sent for an invalid Demo key, seen in a probe), 10011 a Demo key on the Pro root URL.
 KEY_REJECTED = {10002, 10010, 10011}
 KEY_REJECTED_MESSAGE = "CoinGecko refused the request (API key problem)."
-_COIN_ID_PATH = re.compile(r"^/coins/[^/]+")
+# /coins/{id}/history and the like; /coins/markets has no id.
+_COIN_ID_PATH = re.compile(r"^/coins/[^/]+(?=/)")
 OLD_HISTORY_MESSAGE = (
     "Crypto prices older than 1 year aren't available on CoinGecko's free plan. "
     "Enter the price manually."
@@ -65,6 +70,19 @@ class KeyCheck(enum.Enum):
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     UNKNOWN = "unknown"
+
+
+def _listing(row: Any) -> CoinListing | None:
+    if not isinstance(row, dict):
+        return None
+    coin_id, symbol, name = row.get("id"), row.get("symbol"), row.get("name")
+    if not all(isinstance(v, str) and v.strip() for v in (coin_id, symbol, name)):
+        return None
+    rank = row.get("market_cap_rank")
+    # bool is an int subclass; anything but a positive int is "no rank".
+    if isinstance(rank, bool) or not isinstance(rank, int) or rank < 1:
+        rank = None
+    return CoinListing(coin_id, symbol.strip().upper(), name.strip(), rank)
 
 
 def _key_rejected(status_code: int, code: int | None) -> bool:
@@ -172,6 +190,30 @@ class CoinGeckoProvider:
 
     def search(self, query: str) -> list[AssetMatch]:
         return self._search_all(query)[:MAX_SEARCH_RESULTS]
+
+    def top_coins(self, limit: int) -> list[CoinListing]:
+        """The largest coins by market cap, `limit` of them at most, from /coins/markets pages."""
+        coins: dict[str, CoinListing] = {}
+        # Whole pages only: a row dropped below never costs another call (another credit).
+        for page in range(1, -(-limit // MARKETS_PAGE_SIZE) + 1):
+            rows = self._get(
+                "/coins/markets",
+                {
+                    "vs_currency": "usd",
+                    "order": "market_cap_desc",
+                    "per_page": str(MARKETS_PAGE_SIZE),
+                    "page": str(page),
+                },
+            ).body
+            if not isinstance(rows, list):
+                raise ProviderUnavailableError("CoinGecko returned an unexpected coin list.")
+            for row in rows:
+                listing = _listing(row)
+                if listing is not None and listing.provider_id not in coins:
+                    coins[listing.provider_id] = listing
+            if len(rows) < MARKETS_PAGE_SIZE:
+                break
+        return list(coins.values())[:limit]
 
     def resolve(self, symbol: str) -> CoinPick | CoinChoiceNeeded | None:
         """Which coin a ticker means when the user didn't pick one (see coin_resolution)."""

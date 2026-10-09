@@ -5,7 +5,8 @@ Two independent checks, so renaming or re-exporting can't slip past both:
   their ungated getters);
 - runtime: in FastAPI's resolved dependency graph, each ungated getter only ever appears as a
   dependency of its gate (shared_market_data under user_market_data, shared_price_history under
-  user_price_history), the functions that apply the stock-data allowlist.
+  user_price_history, shared_coin_index under user_coin_index), the functions that apply the
+  stock-data allowlist or, for the coin index, require a login.
 """
 
 import ast
@@ -17,16 +18,32 @@ from fastapi.routing import APIRoute
 from starlette.routing import BaseRoute
 
 from app.main import app
-from app.market_data.access import user_market_data, user_price_history
+from app.market_data.access import user_coin_index, user_market_data, user_price_history
+from app.market_data.coin_index import shared_coin_index
 from app.market_data.price_history import shared_price_history
 from app.market_data.service import shared_market_data
 
 # Each ungated getter and the only function allowed to depend on it.
-GATES = {shared_market_data: user_market_data, shared_price_history: user_price_history}
+GATES = {
+    shared_market_data: user_market_data,
+    shared_price_history: user_price_history,
+    shared_coin_index: user_coin_index,
+}
 
 API_DIR = Path(__file__).resolve().parents[2] / "app" / "api"
-RAW_MODULES = {"app.market_data.service", "app.market_data.price_history"}
-RAW_NAMES = {"shared_market_data", "MarketData", "shared_price_history", "PriceHistoryService"}
+RAW_MODULES = {
+    "app.market_data.service",
+    "app.market_data.price_history",
+    "app.market_data.coin_index",
+}
+RAW_NAMES = {
+    "shared_market_data",
+    "MarketData",
+    "shared_price_history",
+    "PriceHistoryService",
+    "shared_coin_index",
+    "CoinIndexService",
+}
 
 
 def _violations(path: Path) -> Iterator[str]:

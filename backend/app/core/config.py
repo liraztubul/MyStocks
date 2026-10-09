@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # gets a longer cache than stocks (60 s, Finnhub's per-minute limit is the constraint there).
     crypto_quote_ttl_seconds: float = Field(default=300, ge=30)
     market_data_timeout_seconds: float = 5.0
+    # The app's own loggers. DEBUG adds one line per provider request (provider, endpoint, status;
+    # never a URL or header), for measuring calls locally.
+    log_level: Literal["DEBUG", "INFO", "WARNING"] = "INFO"
 
     # Unset: open registration in development, registration disabled in production.
     registration_invite_code: str | None = None

@@ -241,3 +241,9 @@ def test_coin_ids_are_not_endpoint_labels() -> None:
     after = provider_calls.snapshot()
     changed = {k for k in after if after[k] != before.get(k)}
     assert changed == {("CoinGecko", "/coins/{id}/market_chart/range", "ok")}
+    before = after
+    provider(lambda _r: httpx2.Response(200, json=[])).top_coins(10)
+    after = provider_calls.snapshot()
+    assert {k for k in after if after[k] != before.get(k)} == {
+        ("CoinGecko", "/coins/markets", "ok")
+    }

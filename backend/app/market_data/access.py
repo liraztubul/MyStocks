@@ -24,6 +24,7 @@ from app.core.config import settings
 from app.core.emails import normalize_email
 from app.core.security import CurrentUser
 from app.domain.enums import AssetType
+from app.market_data.coin_index import CoinIndexService, shared_coin_index
 from app.market_data.price_history import HistoryResult, PriceHistoryService, shared_price_history
 from app.market_data.provider import (
     AssetMatch,
@@ -111,6 +112,17 @@ def user_market_data(
 
 
 UserMarketDataDep = Annotated[UserMarketData, Depends(user_market_data)]
+
+
+def user_coin_index(
+    _user: CurrentUser, shared: Annotated[CoinIndexService, Depends(shared_coin_index)]
+) -> CoinIndexService:
+    # Crypto isn't allowlisted, so this only requires a login; it is still the one way in, like
+    # the other gates.
+    return shared
+
+
+CoinIndexDep = Annotated[CoinIndexService, Depends(user_coin_index)]
 
 
 class UserPriceHistory:

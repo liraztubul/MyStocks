@@ -33,6 +33,7 @@ class CallCounter:
 
     def record(self, provider: str, endpoint: str, status: int | None, cdn_hit: bool) -> None:
         outcome = "error" if status is None else "ok" if status == 200 else str(status)
+        logger.debug("%s %s -> %s%s", provider, endpoint, outcome, " (cdn hit)" if cdn_hit else "")
         report = None
         with self._lock:
             for key in [(provider, endpoint, outcome)] + (

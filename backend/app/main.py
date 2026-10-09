@@ -13,13 +13,13 @@ from app.core.errors import CodedHTTPError, coded_http_error_handler
 from app.market_data.provider import MarketDataError
 from app.market_data.service import check_coingecko_key
 
-# uvicorn configures only its own loggers; give the app's an INFO handler in the same style.
+# uvicorn configures only its own loggers; give the app's a handler in the same style.
 _app_logger = logging.getLogger("app")
 if not _app_logger.handlers:
     _handler = logging.StreamHandler()
     _handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s: %(message)s"))
     _app_logger.addHandler(_handler)
-    _app_logger.setLevel(logging.INFO)
+    _app_logger.setLevel(settings.log_level)
 
 
 @asynccontextmanager
