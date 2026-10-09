@@ -77,6 +77,7 @@ MyStocks/
 | M6a.g | Stock-data allowlist (one server-side gate, default-deny) | Done, verified in browser |
 | M6a | Asset page with crypto price chart (history cache, coin identity, gated endpoint) | Done, verified in browser |
 | W1 | Watchlist, crypto only (batched prices, rolling 24h change, `/watchlist` page) | Done, verified in browser |
+| W1.1 | Coin autocomplete from a local top-500 coin index (`/api/coins/suggest`, `CoinCombobox`) | Done, verified in browser |
 | M6b | Portfolio value over time; stock history (Tiingo) | Next |
 | M7 | Polish + deploy | Not started |
 

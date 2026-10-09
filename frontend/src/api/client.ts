@@ -64,9 +64,10 @@ export function retryDelay(attempt: number, error: unknown): number {
   return isServerWaking(error) ? WAKE_RETRY_DELAY_MS : Math.min(1000 * 2 ** attempt, 30_000)
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
+    signal,
     credentials: 'include',
     headers: {
       Accept: 'application/json',
@@ -113,8 +114,9 @@ async function errorBody(response: Response): Promise<ErrorBody> {
   return { message: fallback, code: null, candidates: null }
 }
 
-export function apiGet<T>(path: string): Promise<T> {
-  return request<T>('GET', path)
+// `signal` lets TanStack Query cancel a request whose answer is no longer wanted.
+export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>('GET', path, undefined, signal)
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {

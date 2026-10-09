@@ -271,28 +271,48 @@ def test_concurrent_first_requests_cause_one_fetch(engine: Engine) -> None:
 
 
 @pytest.mark.usefixtures("clean_index")
-def test_failed_refresh_keeps_old_rows_and_cools_down(engine: Engine) -> None:
+def test_expired_index_is_not_served_once_its_refresh_failed(engine: Engine) -> None:
     clock, source = Clock(), FakeList(NEW)
     stale_at = clock.now - timedelta(hours=30)
     store(engine, OLD, stale_at)
     source.fail = True
+    source.gate = threading.Event()
     svc = service(engine, source, clock, cooldown=timedelta(minutes=15))
 
+    # Older than 24 h, but a refresh is running: the old rows are served meanwhile.
     assert ask(engine, svc, "eth") == (["ETH"], None)
+    source.gate.set()
     settle(svc)
-    assert index(engine) == (["bitcoin", "ethereum"], stale_at)  # old rows kept
     assert source.calls == 1
 
+    # The refresh failed: rows kept, but too old to serve while nothing is refreshing them.
+    assert index(engine) == (["bitcoin", "ethereum"], stale_at)
+    assert ask(engine, svc, "eth") == ([], INDEX_UNAVAILABLE)
     clock.now += timedelta(minutes=10)
-    assert ask(engine, svc, "eth") == (["ETH"], None)
+    assert ask(engine, svc, "eth") == ([], INDEX_UNAVAILABLE)
     assert source.calls == 1  # inside the cooldown: no retry
+    assert index(engine) == (["bitcoin", "ethereum"], stale_at)
 
+    # After the cooldown a refresh succeeds and the index is back to normal.
     clock.now += timedelta(minutes=6)
     source.fail = False
-    ask(engine, svc, "eth")
+    source.gate = threading.Event()
+    assert ask(engine, svc, "eth") == (["ETH"], None)  # served while the retry runs
+    source.gate.set()
     settle(svc)
     assert source.calls == 2
-    assert index(engine)[0] == ["bitcoin", "ethereum", "pepe"]
+    assert index(engine) == (["bitcoin", "ethereum", "pepe"], clock.now)
+    assert ask(engine, svc, "pe") == (["PEPE"], None)
+    assert source.calls == 2
+
+
+@pytest.mark.usefixtures("clean_index")
+def test_index_up_to_24_hours_old_is_served_without_a_refresh(engine: Engine) -> None:
+    clock, source = Clock(), FakeList(NEW)
+    store(engine, OLD, clock.now - timedelta(hours=23, minutes=59))
+    svc = service(engine, source, clock)
+    assert ask(engine, svc, "eth") == (["ETH"], None)
+    assert source.calls == 0
 
 
 @pytest.mark.usefixtures("clean_index")

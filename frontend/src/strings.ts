@@ -219,9 +219,9 @@ export const t = {
   watchlist: {
     title: 'Watchlist',
     addHeading: 'Watch a coin',
-    symbolLabel: 'Coin ticker',
-    symbolPlaceholder: 'e.g. BTC',
-    cryptoOnly: "Crypto only for now. Type the ticker; if several coins share it, you'll pick one.",
+    symbolLabel: 'Coin',
+    symbolPlaceholder: 'Name or ticker, e.g. bitcoin',
+    cryptoOnly: 'Crypto only for now. Pick a suggestion, or type an exact ticker and press Enter.',
     add: 'Add',
     adding: 'Adding…',
     listHeading: 'Watched coins',
@@ -263,6 +263,14 @@ export const t = {
       conflict: (detail: string) => `That didn't go through: ${detail}`,
       cryptoOnly: 'Only crypto can be watched for now.',
     },
+  },
+  coinSuggest: {
+    listLabel: 'Suggested coins',
+    count: (n: number) => `${n} suggestion${n === 1 ? '' : 's'}. Use the up and down arrows to choose.`,
+    noMatch: 'No match in the top coins. Press Enter to try this as an exact ticker.',
+    unavailable: 'Suggestions are unavailable right now. Type the exact ticker (for example BTC) and press Enter.',
+    rank: (rank: number) => `#${rank}`,
+    unranked: 'unranked',
   },
   notFound: {
     title: 'Page not found',

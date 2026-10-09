@@ -4,6 +4,7 @@ import { ApiError, type ErrorCandidate } from '../api/client'
 import type { WatchlistItem } from '../api/watchlist'
 import { isNotAvailableOnDeployment, writeErrorMessage } from '../api/writeErrors'
 import { assetPath } from '../components/assetLinks'
+import { CoinCombobox, type CoinComboboxHandle } from '../components/CoinCombobox'
 import { CoinPicker } from '../components/CoinPicker'
 import { formatQuotePrice, formatRelative, formatSignedPercent } from '../components/format'
 import { FormError } from '../components/FormError'
@@ -229,13 +230,22 @@ function AddForm({
   const [choice, setChoice] = useState<{ symbol: string; candidates: ErrorCandidate[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const combo = useRef<CoinComboboxHandle>(null)
+  // One add at a time: a second tap or Enter while one is being resolved or saved is ignored
+  // (isPending alone updates a render too late for a fast double tap).
+  const busy = useRef(false)
 
   function submit(wanted: string, id?: string) {
+    if (busy.current) return
+    busy.current = true
     setError(null)
     const already = items?.some((i) => i.symbol === wanted) ?? false
     add.mutate(
       { symbol: wanted, id },
       {
+        onSettled: () => {
+          busy.current = false
+        },
         onSuccess: () => {
           setChoice(null)
           setSymbol('')
@@ -254,39 +264,41 @@ function AddForm({
     )
   }
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault()
-    const wanted = symbol.trim().toUpperCase()
-    if (wanted) submit(wanted)
+    const typed = symbol.trim()
+    if (!typed || busy.current) return
+    busy.current = true
+    const coin = (await combo.current?.resolveExact()) ?? null
+    busy.current = false
+    if (coin) {
+      setSymbol(coin.symbol)
+      submit(coin.symbol, coin.provider_id)
+    } else {
+      submit(typed.toUpperCase())
+    }
   }
 
   return (
     <div className="stack">
       <form className="watch-form" onSubmit={onSubmit}>
-        <div className="field">
-          <label className="field-label" htmlFor="watch-symbol">
-            {t.watchlist.symbolLabel}
-          </label>
-          <input
-            ref={input}
-            id="watch-symbol"
-            required
-            maxLength={32}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            placeholder={t.watchlist.symbolPlaceholder}
-            aria-describedby="watch-symbol-hint"
-            value={symbol}
-            onChange={(e) => {
-              setSymbol(e.target.value)
-              setChoice(null)
-            }}
-          />
-          <span id="watch-symbol-hint" className="field-hint">
-            {t.watchlist.cryptoOnly}
-          </span>
-        </div>
+        <CoinCombobox
+          id="watch-symbol"
+          label={t.watchlist.symbolLabel}
+          placeholder={t.watchlist.symbolPlaceholder}
+          hint={t.watchlist.cryptoOnly}
+          inputRef={input}
+          handle={combo}
+          value={symbol}
+          onChange={(text) => {
+            setSymbol(text)
+            setChoice(null)
+          }}
+          onPick={(coin) => {
+            setSymbol(coin.symbol)
+            submit(coin.symbol, coin.provider_id)
+          }}
+        />
         <button type="submit" className="button button-primary watch-add" disabled={add.isPending}>
           <Icon name="plus" size={18} />
           {add.isPending ? t.watchlist.adding : t.watchlist.add}

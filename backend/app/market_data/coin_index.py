@@ -7,11 +7,15 @@ Refresh is lazy: a suggest request finds the index empty or older than MAX_AGE a
   the flight. Concurrent requests find it alive and share it (an empty-index request joins it),
   so they cause one provider fetch. Per process only: production runs one instance.
 - A failed refresh keeps the old rows and starts a cooldown, so requests don't retry every time.
+- Served only while at most MAX_AGE old, or while a refresh is actually running. Older rows with
+  no refresh running (e.g. during the cooldown) are kept but not served: the answer is empty
+  with reason coin_index_unavailable, and the client falls back to exact tickers.
 - No DB transaction is open across the provider call: the refresh fetches first, then writes in
   a short transaction of its own, and the request ends its read transaction before waiting.
 
-CoinGecko's API terms (section 6.1, read 2026-10-09) allow caching if it is refreshed at least
-every 24 hours; MAX_AGE follows that, and a refresh replaces the whole table.
+CoinGecko's API terms (section 6.1, read 2026-10-09): "if you must cache or store Data: (a) You
+should refresh the cache at least every 24 hours". MAX_AGE follows that, a refresh replaces the
+whole table, and the serving rule above keeps data older than that from being shown.
 
 Ungated: endpoints reach it only through app.market_data.access.CoinIndexDep.
 """
@@ -99,6 +103,11 @@ class CoinIndexService:
             if self._updated_at(db) is None:
                 running = flight is not None and flight.is_alive()
                 return Suggestions([], INDEX_LOADING if running else INDEX_UNAVAILABLE)
+        elif self._now() - updated_at > self._max_age and not (flight and flight.is_alive()):
+            # Too old to serve, and no refresh is running; unless one just finished.
+            updated_at = self._updated_at(db)
+            if updated_at is None or self._now() - updated_at > self._max_age:
+                return Suggestions([], INDEX_UNAVAILABLE)
         return Suggestions(self._match(db, q))
 
     def refresh_if_due(self, updated_at: datetime | None) -> threading.Thread | None:

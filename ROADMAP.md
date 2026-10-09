@@ -17,6 +17,7 @@
 | M6a.g | Stock-data allowlist: one server-side gate for all stock market data | Done |
 | M6a | Asset page with a crypto price chart (router, gate, coin identity, cache, endpoint, chart) | Done |
 | W1 | Watchlist, crypto only: add/remove, batched prices with rolling 24h change, `/watchlist` page | Done |
+| W1.1 | Coin autocomplete on the watchlist, from a local index of the top 500 coins | Done |
 | M6b | Portfolio value over time; stock history (Tiingo) | Next |
 
 ## Watchlist (W1 done)
@@ -56,6 +57,43 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
     - Each row shows "updated …" and a visible stale tag.
     - The list polls every 60 s, paused while the tab is hidden.
     - An ambiguous ticker opens the coin picker, which re-submits with the chosen id.
+- **W1.1 (done): coin autocomplete.**
+  - **Index:** `coin_index` holds the top 500 coins by market cap (id, ticker, name, rank),
+    public data shared by every user. It is filled from CoinGecko `/coins/markets` (2 pages
+    of 250, 2 credits) through the provider adapter.
+  - **Refresh:** lazy. The first search finds the index empty or older than 24 h and starts
+    one refresh; only an empty index makes that request wait.
+    - **One refresh at a time:** a lock around "start one unless one is running"; other
+      requests share it. In-process only, which is fine while production runs one instance.
+    - **Stale rows** are served only while a refresh is actually running (terms 6.1, see
+      below).
+    - **A failed refresh** keeps the old rows and pauses retries for 15 minutes.
+    - **No transaction or lock** is held across the provider call.
+  - **API:** `GET /api/coins/suggest?q=`.
+    - Login required. Queries under 2 characters return nothing; queries are trimmed and cut
+      to 50 characters. LIKE wildcards are escaped. At most 8 results.
+    - Order: exact ticker, ticker prefix, name prefix, name-word prefix, name contains; ties by
+      rank.
+    - `reason` is `coin_index_loading` or `coin_index_unavailable` when the index can't answer.
+  - **UI:** a reusable `CoinCombobox` (WAI-ARIA 1.2 combobox, list autocomplete).
+    - Choosing a suggestion adds the coin by its id, with no `/search` lookup; the new row is
+      still priced.
+    - Enter or Add with no option chosen first checks for an exact match (trimmed, any case):
+      - one coin whose ticker equals the text, or else one whose name does, is added by its
+        id;
+      - a ticker shared by several coins (DAI, VELO, USDF in today's index) is sent as typed,
+        so the server's coin rules decide: an automatic pick with disclosure when one coin
+        dominates (DAI), otherwise the picker (VELO);
+      - anything else keeps the exact-ticker flow, so coins outside the top 500 still work.
+    - One add at a time: repeated Enter or taps while one is being resolved or saved are
+      ignored.
+    - If suggestions are unavailable, the field says so and works as a plain ticker field.
+  - **Follow-ups:**
+    - Wire `CoinCombobox` into the transactions form; it currently uses a live-search
+      autocomplete, one CoinGecko and Finnhub search per debounced query.
+    - Hebrew names and aliases for coins.
+    - Index size: 500 is a guess; consider 1,000 (4 credits a refresh) if users miss coins.
+    - Store coin names for the watchlist rows from the index.
 - **W2 candidates:**
   - **A sparkline per row**, drawn from the `daily_closes` cache. **Design the request budget
     first:** a list of N symbols can mean N history backfills on first view, and Tiingo's free
@@ -357,6 +395,30 @@ CoinGecko responses on 2026-09-30.
     the billed kind; `cdn_hit`; error codes). They are logged about once an hour as
     "Provider calls, last hour: ...; since start: ...". The counts are in memory, reset on
     restart, and are not a substitute for the Developer Dashboard.
+- **Risk: stored CoinGecko data versus the API terms (read 2026-10-09,
+  https://www.coingecko.com/en/api_terms).**
+  - **6.2:** "Except as expressly permitted hereunder this API Terms, you are not allowed to
+    duplicate, reproduce, copy, store, derive from or translate any Data, API Documentation, or
+    any information expressed by the Data (including but not limited to hashed or transferred
+    data)."
+  - **6.1:** "We do not encourage caching or storage of Data. However, if you must cache or
+    store Data:- (a) You should refresh the cache at least every 24 hours; (b) Strong encryption
+    and other security measures should be applied to stored Data; [...] (d) In the event that
+    CoinGecko terminates your access to or use of the CoinGecko API (regardless of reasons), you
+    agree to promptly and permanently delete all Data and any other information that you have
+    stored pursuant to your use of or access to the CoinGecko API, without keeping any copy
+    thereof unless required by applicable law."
+  - **`coin_index` (top-coins list):**
+    - **(a):** refreshed when older than 24 h, and each refresh replaces the whole table.
+      Rows older than 24 h are served only while a refresh is actually running. Otherwise, for
+      example during the 15-minute cooldown after a failed refresh, the API answers empty with
+      `coin_index_unavailable`; the rows are kept but not shown. The refresh is lazy, so an
+      idle app can still *hold* rows older than 24 h until its next search.
+    - **(b):** depends on the database's encryption at rest (Neon), not verified.
+    - **(d):** would mean clearing the table.
+  - **`daily_closes` (price history):** stored indefinitely and never refreshed, because a
+    final daily close doesn't change. Taken literally, that conflicts with 6.1(a). Unchanged
+    for now; the owner is asking CoinGecko in writing whether historical closes may be kept.
 - **Market data budget (CoinGecko, 30-day month = 43,200 minutes):**
   - **Quotes:** the cache key is (ticker, coin id), shared by all users.
     - The watchlist costs **one batched call per TTL** for its uncached coins.
@@ -440,9 +502,10 @@ CoinGecko responses on 2026-09-30.
   "no choice yet" and follows `prefers-color-scheme`, including live OS changes. Old `'system'`
   values are not rewritten; they're ignored until the user clicks a segment. There is no way
   back to "follow the OS" once a choice is made, short of clearing site data.
-- **No frontend test runner.** Lint, typecheck, build and the throwaway Playwright checks in
-  the scratchpad are the only frontend gates. Adding Vitest + Testing Library (plus a Playwright
-  smoke test in CI) is the natural next step.
+- **Frontend tests are minimal.** `npm test` runs pure-function tests with Node's built-in runner
+  and type stripping (`frontend/tests/`, no test dependency; not wired into CI yet). Components
+  are checked only by lint, typecheck, build and throwaway Playwright scripts in the scratchpad.
+  Adding Vitest + Testing Library (plus a Playwright smoke test in CI) is the natural next step.
 - **Native date-time picker:** the transaction form's `datetime-local` input renders in the
   browser/OS locale (e.g. `dd/mm/yyyy`), not `strings.ts`'s `locale`. Browsers don't let pages
   control that.
