@@ -10,22 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Transaction, User, UserAsset, WatchlistItem
 from app.domain.enums import AssetType, Side
-from app.market_data.access import UserMarketData
-from app.market_data.service import MarketData
 from app.services.asset_identity import ensure_asset_identity
-
-
-class NoNetwork:
-    def search(self, query: str):  # type: ignore[no-untyped-def]
-        raise AssertionError("unexpected provider call")
-
-    get_quote = get_price_on = search
-
-
-MARKET = UserMarketData(
-    MarketData({AssetType.STOCK: NoNetwork(), AssetType.CRYPTO: NoNetwork()}),
-    stock_data_available=True,
-)
 
 
 def user(db: Session, email: str = "watcher@example.com") -> User:
@@ -103,6 +88,6 @@ def test_a_watched_record_is_in_use_even_without_trades(db_session: Session) -> 
     db_session.flush()
     # No trades left, but the symbol is still watched: the user's coin stays protected.
     with pytest.raises(Exception) as refused:
-        ensure_asset_identity(db_session, MARKET, owner.id, "BTC", AssetType.CRYPTO, "bitcoin-cash")
+        ensure_asset_identity(db_session, owner.id, "BTC", AssetType.CRYPTO, "bitcoin-cash")
     assert getattr(refused.value, "code", None) == "asset_identity_conflict"
     assert db_session.get(UserAsset, (owner.id, "BTC")).provider_id == "bitcoin"

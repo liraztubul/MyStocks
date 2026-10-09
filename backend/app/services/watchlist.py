@@ -103,18 +103,18 @@ def add(
         )
 
     # Check and resolve without the lock or an open transaction, so no lock is held across the
-    # provider call; everything is checked again under the lock below.
-    _, record = _checked_state(db, user_id, symbol)
-    resolve = _needs_rules(record, picked_id)
-    db.rollback()
-    coin_id = _resolve_by_rules(market_data, symbol) if resolve else None
-
-    lock_user_writes(db, user_id)
-    existing, record = _checked_state(db, user_id, symbol)
-    if coin_id is None and _needs_rules(record, picked_id):
-        # The recorded coin went away (a concurrent remove) between the check and the lock.
+    # provider call; everything is checked again under the lock. If the recorded coin went away in
+    # between (a concurrent remove), restart once, resolving this time.
+    for attempt in range(2):
+        _, record = _checked_state(db, user_id, symbol)
+        resolve = _needs_rules(record, picked_id) or (attempt > 0 and not picked_id)
         db.rollback()
-        return add(db, market_data, user_id, symbol, asset_type, picked_id)
+        coin_id = _resolve_by_rules(market_data, symbol) if resolve else None
+        lock_user_writes(db, user_id)
+        existing, record = _checked_state(db, user_id, symbol)
+        if coin_id is not None or not _needs_rules(record, picked_id):
+            break
+        db.rollback()
 
     if record is not None and record.asset_type is not AssetType.CRYPTO:
         # An old stock meaning nothing uses any more binds nothing (the asset_identity rule).
@@ -125,7 +125,7 @@ def add(
     if picked_id:
         # No provider call; 409 if it contradicts the user's own earlier pick, and picking the
         # coin the rules chose confirms it.
-        ensure_asset_identity(db, market_data, user_id, symbol, AssetType.CRYPTO, picked_id)
+        ensure_asset_identity(db, user_id, symbol, AssetType.CRYPTO, picked_id)
     elif coin_id is not None and (record is None or not record.provider_id):
         if record is None:
             db.add(

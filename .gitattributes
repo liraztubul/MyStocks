@@ -1,2 +1,16 @@
+# LF for every text file, in the repository and in working copies on every OS: the app is built
+# from the working tree into Linux containers, so CRLF from a Windows checkout must not reach them.
+* text=auto eol=lf
+
 # Shell scripts run inside Linux containers; CRLF line endings would break them.
 *.sh text eol=lf
+
+# Windows batch files need CRLF (none today).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.woff2 binary
+*.woff binary
+*.png binary
+*.jpg binary
+*.ico binary
