@@ -10,6 +10,7 @@ from app.api.assets import market_data_error_handler
 from app.core.config import settings
 from app.core.edge import EdgeGuardMiddleware
 from app.core.errors import CodedHTTPError, coded_http_error_handler
+from app.market_data.access import check_stock_data_allowlist
 from app.market_data.provider import MarketDataError
 from app.market_data.service import check_coingecko_key
 
@@ -24,6 +25,7 @@ if not _app_logger.handlers:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    check_stock_data_allowlist()
     # In the background: a slow or unreachable CoinGecko must never delay or break startup.
     threading.Thread(target=check_coingecko_key, name="coingecko-key-check", daemon=True).start()
     yield

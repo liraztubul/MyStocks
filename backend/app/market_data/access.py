@@ -13,6 +13,7 @@ Error convention for "not available on this deployment" (code `not_available_on_
   deployment, not a failure.
 """
 
+import logging
 from collections.abc import Sequence
 from datetime import date, datetime
 from typing import Annotated
@@ -38,12 +39,33 @@ from app.market_data.service import MarketData, SearchResult, SourceFailure, sha
 
 STOCK_DATA_NOT_AVAILABLE = "Stock prices aren't available on this deployment."
 
+logger = logging.getLogger(__name__)
+
 
 class StockDataNotAvailableError(MarketDataError):
     code = "not_available_on_deployment"
 
     def __init__(self) -> None:
         super().__init__(STOCK_DATA_NOT_AVAILABLE)
+
+
+def check_stock_data_allowlist() -> None:
+    """Logs at startup how widely stock data is shown, as a count, never the addresses. Finnhub's
+    plans are for personal use, and its terms forbid sharing data or derived results (values,
+    P/L) with anyone else without written approval."""
+    count = len(settings.stock_data_allowlist)
+    if count > 1:
+        logger.warning(
+            "STOCK_DATA_ALLOWED_EMAILS lists %d addresses: Finnhub's terms forbid sharing its data "
+            "or derived results with anyone else without written approval. Keep it to the "
+            "owner's own address.",
+            count,
+        )
+    elif count == 0 and not settings.is_production:
+        logger.info(
+            "STOCK_DATA_ALLOWED_EMAILS is empty, so in development every registered user sees "
+            "stock data. Set it to your own address on any deployment others can reach."
+        )
 
 
 def stock_data_allowed(email: str) -> bool:

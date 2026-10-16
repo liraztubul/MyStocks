@@ -18,7 +18,7 @@
 | M6a | Asset page with a crypto price chart (router, gate, coin identity, cache, endpoint, chart) | Done |
 | W1 | Watchlist, crypto only: add/remove, batched prices with rolling 24h change, `/watchlist` page | Done |
 | W1.1 | Coin autocomplete on the watchlist, from a local index of the top 500 coins | Done |
-| M6b | Portfolio value over time; stock history (Tiingo) | Next |
+| M6b | Portfolio value over time; stock history | Blocked for stocks: Tiingo's free plan forbids storing its data (see "Provider data and licensing") |
 
 ## Watchlist (W1 done)
 
@@ -95,13 +95,13 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
     - Index size: 500 is a guess; consider 1,000 (4 credits a refresh) if users miss coins.
     - Store coin names for the watchlist rows from the index.
 - **W2 candidates:**
-  - **A sparkline per row**, drawn from the `daily_closes` cache. **Design the request budget
-    first:** a list of N symbols can mean N history backfills on first view, and Tiingo's free
-    tier allows 50 requests/hour, 1,000/day and 500 symbols/month. Likely answers: serve only
-    what's cached, backfill lazily per visible row, and bring back the per-provider budget
-    that M6a dropped (see "Price history (M6a)").
+  - **A sparkline per row** (crypto), drawn from the `daily_closes` cache. **Design the
+    request budget first:** a list of N symbols can mean N history backfills on first view.
+    Likely answers: serve only what's cached, backfill lazily per visible row, and bring back
+    the per-provider budget that M6a dropped (see "Price history (M6a)").
   - **Ordering:** manual reordering or sorting; rows are in the order they were added.
-  - **Stocks**, after Tiingo (M6b), still behind `STOCK_DATA_ALLOWED_EMAILS`.
+  - **Stocks**, still behind `STOCK_DATA_ALLOWED_EMAILS`; prices only (no free stock history
+    source allows storage; see "Provider data and licensing").
   - **Coin names:** rows show the CoinGecko id (e.g. `simon-s-cat`), because batched quotes
     carry no name and none is stored. Storing the name when the coin is picked would fix it.
 - **W3: reports**, starting with SEC EDGAR filings (public, keyless, with a published fair-access
@@ -144,7 +144,8 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
     `ambiguous: true` and candidates (id, name, rank), and no bars.
   - **Stocks:** 200 `available: false`, reason `not_available_on_deployment` for blocked users
     (decided before anything else, so it doesn't reveal whether the symbol exists) or
-    `provider_not_configured` for allowed ones until Tiingo exists. No data is invented.
+    `provider_not_configured` for allowed ones (there is no stock history provider; see
+    "Provider data and licensing"). No data is invented.
   - **Markers** come only from the requesting user's trades, on the trade's UTC day (crypto) or
     New York trading day (stocks), snapped to the next bar if that day has no close. Trades
     that can't be drawn are listed in `undrawn_trades` with a reason: `before_range` (older
@@ -226,6 +227,72 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
 - **Migration** (`4a6e17d63025`): backfills one record per existing (user, symbol) with the
   latest trade's asset type and no coin, with no network calls. Take a database backup before
   deploying it.
+
+## Provider data and licensing
+
+Terms read 2026-10-09 (CoinGecko) and 2026-10-16 (Finnhub, Tiingo). Re-read them before relying
+on this: Finnhub's terms carry no date, and Tiingo rewrote its storage rules on 2026-10-06.
+
+- **Finnhub** (stock quotes and search; https://finnhub.io/terms-of-service):
+  - "All plan listed on Finnhub website is strictly for personal use unless explicitly stated
+    otherwise."
+  - "You hereby agree to not redistribute or share access to data or derived results from the
+    data obtained from Finnhub with anyone or any 3rd party without written approval from
+    Finnhub."
+  - "All data must be deleted should your subscription to that data ends."
+  - Nothing else on storing or caching, and no attribution requirement found. The free plan's
+    own pricing page couldn't be read (it renders in JavaScript).
+  - **What we do:** stock data reaches only `STOCK_DATA_ALLOWED_EMAILS`, which should hold the
+    owner's address alone. Startup logs a warning if it lists more than one address, and in
+    development a notice when it is empty (everyone allowed). Only the count is logged.
+- **Tiingo** (not used; https://app.tiingo.com/tos/, last updated 2026-10-06):
+  - The free plan is "Starter". §1.6(a): "you may not write, save, archive, back up, or
+    otherwise retain Tiingo Data in any persistent or durable storage". This covers
+    "databases, object stores, file systems, logs, queues, archives, backups", and the same
+    limits apply to anything derived from the data.
+  - §7.3: "All data via the API is for internal consumption only."
+  - **So:** no cached stock history on the free plan. Its developer program does allow apps where
+    each user supplies their own token, with Tiingo credited as the source; not built.
+- **CoinGecko** (crypto): see "Risk: stored CoinGecko data versus the API terms" under
+  Market data (M4).
+
+**Where provider data lives**
+
+| Data | Where | How long |
+| --- | --- | --- |
+| Stock quotes (price, previous close, time) | `CachedProvider._live`, memory | 60 s |
+| Last good stock quote (stale fallback) | `CachedProvider._last_good`, memory | Until restart |
+| Stock price-on-date closes | `CachedProvider._final`, memory | Until restart |
+| Stock search results | `CachedProvider._search`, memory | 1 h |
+| Portfolio value, P/L, daily change | Computed per request | Not stored |
+| Crypto quotes | `CachedProvider`, memory | `CRYPTO_QUOTE_TTL_SECONDS` (300 s) |
+| Crypto daily closes, coin index | `daily_closes`, `coin_index` (database, so also in backups) | Closes kept; index replaced daily |
+| Logs | Provider, endpoint and status (DEBUG), hourly call counts; no prices or response bodies. Access logs show tickers and dates in URLs | Host's log retention |
+| Browser | TanStack Query cache in memory; `localStorage` holds only the theme and the first-entry flag | Until the tab closes |
+| Nightly backups | The whole database, encrypted, as a GitHub Actions artifact | 14 days |
+
+**Grey area: trade prices saved from a prefill.**
+- **Where they come from:** the buy form's price-on-date autofill and the Sell dialog's default
+  price come from Finnhub (stocks) or CoinGecko (crypto).
+- **What happens to them:** once the user saves the trade, the price is the user's own record
+  in `transactions.price` (database and backups). Today it can't be told apart from a typed
+  price.
+- **Open question:** whether it still counts as "data obtained from Finnhub" after a
+  subscription ends.
+- **If this ever matters:** record whether a trade's price was autofilled (a column on
+  `transactions`) so those rows can be found.
+
+**Offboarding a provider** (subscription ended or key revoked):
+1. **Key:** remove it from Render (and the local `.env`) and restart. Every memory cache (quotes,
+   last good, price-on-date, search) goes with the process.
+2. **Database:**
+   - Finnhub: no provider table holds its data; decide what to do with saved prices that came
+     from a prefill (above).
+   - CoinGecko: delete `daily_closes` rows with provider `coingecko` and the `coin_index` table
+     (terms 6.1(d)).
+3. **Backups:** they expire after 14 days. If the terms require prompt deletion, delete the
+   backup artifacts in GitHub Actions early.
+4. **Logs:** they hold no provider values; nothing to do.
 
 ## Known MVP limitations
 
@@ -336,7 +403,8 @@ CoinGecko responses on 2026-09-30.
   when the latest session answers it: today, or a weekend/holiday that falls back to the last
   close. Any older date returns `price_unavailable` and the form asks for manual entry. Fixing
   this means a paid Finnhub plan, or a second adapter just for history. Tiingo's free tier has
-  30+ years of EOD data but is licensed "internal use only", which conflicts with open signup.
+  30+ years of EOD data but is licensed "internal use only", and its terms forbid storing any of
+  it (see "Provider data and licensing").
 - **Crypto history is limited to the past 365 days** on CoinGecko's free/keyless API.
   Older dates return `price_unavailable`, so the price is entered manually.
 - **Crypto "close" is CoinGecko's 00:00 UTC snapshot of the following day**, not an

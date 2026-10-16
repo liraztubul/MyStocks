@@ -164,7 +164,8 @@ def get_history(
         # Decided before anything else, so the answer doesn't reveal whether the symbol exists.
         return without_chart(available=False, unavailable_reason="not_available_on_deployment")
     if not history.has_provider(asset_type):
-        # No stock history provider yet (Tiingo comes later); never invent data.
+        # No stock history provider (Tiingo's free plan forbids the storage this relies on);
+        # never invent data.
         return without_chart(available=False, unavailable_reason="provider_not_configured")
 
     # Which coin: the one asked for, else the user's recorded one, else the coin rules.

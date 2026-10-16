@@ -78,7 +78,7 @@ MyStocks/
 | M6a | Asset page with crypto price chart (history cache, coin identity, gated endpoint) | Done, verified in browser |
 | W1 | Watchlist, crypto only (batched prices, rolling 24h change, `/watchlist` page) | Done, verified in browser |
 | W1.1 | Coin autocomplete from a local top-500 coin index (`/api/coins/suggest`, `CoinCombobox`) | Done, verified in browser |
-| M6b | Portfolio value over time; stock history (Tiingo) | Next |
+| M6b | Portfolio value over time; stock history | Blocked for stocks: no free source allows storing or showing history (see ROADMAP "Provider data and licensing") |
 | M7 | Polish + deploy | Not started |
 
 ## The 3 riskiest technical decisions (from initial planning)

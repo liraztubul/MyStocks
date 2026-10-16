@@ -29,7 +29,8 @@ class DailyBar:
     day: date
     # Raw, as traded (never split- or dividend-adjusted), rounded with round_close.
     close: Decimal
-    # Stocks (Tiingo, later): the split ratio taking effect that day, and cash dividend paid.
+    # Stocks, only with a provider whose terms allow storing history (Tiingo's free plan doesn't):
+    # the split ratio taking effect that day, and cash dividend paid.
     split_factor: Decimal = Decimal(1)
     dividend: Decimal = Decimal(0)
 

@@ -300,7 +300,7 @@ class PriceHistoryService:
         )
 
 
-# Ungated, like shared_market_data: stock history (Tiingo, later) must reach users only through
+# Ungated, like shared_market_data: stock history, if ever added, must reach users only through
 # app.market_data.access. Crypto only for now. Routers must never depend on this directly
 # (tests/unit/test_market_data_boundary.py).
 @lru_cache

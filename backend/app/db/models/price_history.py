@@ -14,10 +14,14 @@ CLOSE = Numeric(38, 18, asdecimal=True)
 class DailyClose(Base):
     """One final daily close per provider series, shared by every user (prices are public).
 
-    Keyed by the provider's own series id (the CoinGecko coin id, later the Tiingo ticker), not by
-    a user's ticker: two users can mean different coins by "BTC". Raw closes plus split and
-    dividend facts never change once final, so rows are cached for good; adjusted prices, which
-    shift every time a new split happens, are derived when read rather than stored.
+    Keyed by the provider's own series id (today only the CoinGecko coin id), not by a user's
+    ticker: two users can mean different coins by "BTC". Raw closes never change once final, so
+    rows are kept; adjusted prices are derived when read rather than stored.
+
+    Only for providers whose terms allow storing their data (see "Provider data and licensing"
+    in ROADMAP.md). Tiingo's free plan doesn't: its terms forbid persistent storage of its data
+    and of anything derived from it, backups included, so stock history must never be cached
+    here on that plan. The split and dividend columns stay unused until a provider allows it.
     """
 
     __tablename__ = "daily_closes"

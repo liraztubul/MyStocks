@@ -1,11 +1,19 @@
+import logging
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
+from fastapi.testclient import TestClient
 
+import app.main as main
 from app.core.config import settings
 from app.domain.enums import AssetType
-from app.market_data.access import StockDataNotAvailableError, UserMarketData, stock_data_allowed
+from app.market_data.access import (
+    StockDataNotAvailableError,
+    UserMarketData,
+    check_stock_data_allowlist,
+    stock_data_allowed,
+)
 from app.market_data.provider import AssetMatch, CoinRef, PriceOnDate, Quote
 from app.market_data.service import MarketData
 
@@ -111,3 +119,52 @@ def test_batch_crypto_quotes_pass_through_the_gate() -> None:
     results = gated.get_quotes(AssetType.CRYPTO, [CoinRef("bitcoin", "BTC")])
     assert results["bitcoin"].price == Decimal("1")  # type: ignore[union-attr]
     assert crypto.calls == 1
+
+
+@pytest.mark.parametrize(
+    ("environment", "configured", "level", "text"),
+    [
+        (
+            "production",
+            "owner@example.com, friend@example.com",
+            logging.WARNING,
+            "lists 2 addresses",
+        ),
+        ("development", "a@example.com,b@example.com,c@example.com", logging.WARNING, "lists 3"),
+        ("development", None, logging.INFO, "every registered user sees stock data"),
+        ("development", "  ", logging.INFO, "every registered user sees stock data"),
+        ("production", None, None, None),
+        ("production", "owner@example.com", None, None),
+        ("development", "Owner@Example.com, owner@example.com ", None, None),  # one address
+    ],
+)
+def test_startup_allowlist_check(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    environment: str,
+    configured: str | None,
+    level: int | None,
+    text: str | None,
+) -> None:
+    monkeypatch.setattr(settings, "environment", environment)
+    monkeypatch.setattr(settings, "stock_data_allowed_emails", configured)
+    with caplog.at_level(logging.INFO, logger="app.market_data.access"):
+        check_stock_data_allowlist()
+    records = [r for r in caplog.records if r.name == "app.market_data.access"]
+    if level is None:
+        assert records == []
+    else:
+        assert [r.levelno for r in records] == [level]
+        assert text in records[0].getMessage()
+    # Addresses are personal data: only their number is logged.
+    assert "@" not in caplog.text
+
+
+def test_allowlist_check_runs_at_startup(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(settings, "stock_data_allowed_emails", "a@example.com,b@example.com")
+    monkeypatch.setattr(main, "check_coingecko_key", lambda: None)
+    with caplog.at_level(logging.INFO, logger="app.market_data.access"), TestClient(main.app):
+        pass
+    assert "lists 2 addresses" in caplog.text
