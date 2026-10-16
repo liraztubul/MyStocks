@@ -5,7 +5,9 @@ Refresh is lazy: a suggest request finds the index empty or older than MAX_AGE a
   background. Only an empty index makes the request wait (briefly) for the refresh.
 - Single-flight: a lock guards "is a refresh running? if not, start one"; the running thread is
   the flight. Concurrent requests find it alive and share it (an empty-index request joins it),
-  so they cause one provider fetch. Per process only: production runs one instance.
+  so they cause one provider fetch. A request whose reading of the index predates a refresh
+  that has since finished (the generation moved on) starts nothing and reads again instead.
+  Per process only: production runs one instance.
 - A failed refresh keeps the old rows and starts a cooldown, so requests don't retry every time.
 - Served only while at most MAX_AGE old, or while a refresh is actually running. Older rows with
   no refresh running (e.g. during the cooldown) are kept but not served: the answer is empty
@@ -88,15 +90,24 @@ class CoinIndexService:
         self._lock = threading.Lock()
         self._flight: threading.Thread | None = None
         self._failed_at: datetime | None = None
+        # Successful refreshes so far: tells a request whether its reading is out of date.
+        self._generation = 0
+
+    @property
+    def generation(self) -> int:
+        with self._lock:
+            return self._generation
 
     def suggest(self, db: Session, query: str) -> Suggestions:
         q = query.strip()[:MAX_QUERY_LENGTH]
         if len(q) < MIN_QUERY_LENGTH:
             return Suggestions([])
+        # Taken before the reading, so a refresh finishing in between is noticed.
+        generation = self.generation
         updated_at = self._updated_at(db)
         # Nothing stays open while a refresh may be waiting on the provider.
         db.rollback()
-        flight = self.refresh_if_due(updated_at)
+        flight = self.refresh_if_due(updated_at, generation)
         if updated_at is None:
             if flight is not None:
                 flight.join(self._empty_wait)
@@ -110,13 +121,21 @@ class CoinIndexService:
                 return Suggestions([], INDEX_UNAVAILABLE)
         return Suggestions(self._match(db, q))
 
-    def refresh_if_due(self, updated_at: datetime | None) -> threading.Thread | None:
+    def refresh_if_due(
+        self, updated_at: datetime | None, read_generation: int | None = None
+    ) -> threading.Thread | None:
         """The refresh in flight, starting one if the index is empty or too old and no failure is
-        cooling down; None when no refresh is running."""
+        cooling down; None when no refresh is running.
+
+        `read_generation` is `generation` as it was before `updated_at` was read. If a refresh
+        has finished since, the reading is out of date: nothing starts, the caller reads again.
+        """
         now = self._now()
         with self._lock:
             if self._flight is not None and self._flight.is_alive():
                 return self._flight
+            if read_generation is not None and read_generation != self._generation:
+                return None
             if updated_at is not None and now - updated_at < self._max_age:
                 return None
             if self._failed_at is not None and now - self._failed_at < self._cooldown:
@@ -146,6 +165,7 @@ class CoinIndexService:
                 db.commit()
             with self._lock:
                 self._failed_at = None
+                self._generation += 1
             logger.info("Coin index refreshed: %d coins.", len(coins))
         except Exception as exc:
             # The old rows stay; the cooldown keeps requests from retrying every time.

@@ -342,3 +342,36 @@ def test_no_transaction_is_open_during_the_provider_call(engine: Engine) -> None
     assert [c.symbol for c in found.coins] == ["BTC"]
     # The request's own read transaction was ended before the refresh could start.
     assert seen == [False]
+
+
+@pytest.mark.usefixtures("clean_index")
+def test_a_reading_from_before_a_finished_refresh_starts_no_second_fetch(engine: Engine) -> None:
+    # The interleaving behind the once-flaky concurrency test, forced: request A reads an empty
+    # index, request B's refresh then runs to completion, and only then does A ask.
+    clock, source = Clock(), FakeList(NEW)
+    svc = service(engine, source, clock)
+    a_generation = svc.generation
+    with Session(engine) as a_db:
+        a_reading = svc._updated_at(a_db)
+    assert a_reading is None
+    svc.refresh_if_due(None, svc.generation)  # B
+    settle(svc)
+    assert source.calls == 1
+    assert svc.refresh_if_due(a_reading, a_generation) is None  # A: out of date, no new fetch
+    assert source.calls == 1
+    assert ask(engine, svc, "pepe") == (["PEPE"], None)  # A's re-read finds B's rows
+    assert source.calls == 1
+
+
+@pytest.mark.usefixtures("clean_index")
+def test_rows_deleted_out_of_band_are_refetched(engine: Engine) -> None:
+    # The generation check only discards readings older than a finished refresh; an index emptied
+    # later (e.g. when offboarding) is still refilled by the next request.
+    clock, source = Clock(), FakeList(NEW)
+    svc = service(engine, source, clock)
+    assert ask(engine, svc, "pepe") == (["PEPE"], None)
+    with Session(engine) as db:
+        db.execute(delete(CoinIndexEntry))
+        db.commit()
+    assert ask(engine, svc, "pepe") == (["PEPE"], None)
+    assert source.calls == 2
