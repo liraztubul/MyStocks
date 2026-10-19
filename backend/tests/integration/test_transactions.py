@@ -53,7 +53,10 @@ def test_full_ledger_flow(client: TestClient) -> None:
 
     # Another user's ledger is invisible, both in the list and by id.
     log_in_as(client, "bob@example.com")
-    bob_trade = client.post(URL, json=trade("buy", "1", symbol="btc", asset_type="crypto"))
+    # A picked coin: no identity lookup, so no provider call.
+    bob_trade = client.post(
+        URL, json=trade("buy", "1", symbol="btc", asset_type="crypto", provider_id="bitcoin")
+    )
     assert [t["symbol"] for t in client.get(URL).json()] == ["BTC"]
     assert client.get(f"{URL}/{buy['id']}").status_code == 404
     assert client.delete(f"{URL}/{buy['id']}").status_code == 404

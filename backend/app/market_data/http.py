@@ -13,6 +13,9 @@ import httpx2
 from app.market_data.provider import ProviderUnavailableError, RateLimitedError
 
 logger = logging.getLogger(__name__)
+# The HTTP library logs every request URL at INFO (tickers, coin ids, date ranges). Our own DEBUG
+# line below carries provider, endpoint and status only; keep the library to warnings.
+logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 REPORT_INTERVAL_SECONDS = 3600
 

@@ -320,7 +320,7 @@ def test_blocked_user_gets_unavailable_for_any_stock(
     assert body["bars"] == [] and fake_history.calls == []
 
 
-def test_allowed_user_has_no_stock_history_provider_yet(
+def test_allowed_user_without_a_tiingo_key_gets_not_configured(
     api: TestClient, fake_history: FakeHistory
 ) -> None:
     held = trade(api, "AAPL", "2026-09-03T15:00:00Z", asset_type="stock")

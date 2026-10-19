@@ -18,7 +18,8 @@
 | M6a | Asset page with a crypto price chart (router, gate, coin identity, cache, endpoint, chart) | Done |
 | W1 | Watchlist, crypto only: add/remove, batched prices with rolling 24h change, `/watchlist` page | Done |
 | W1.1 | Coin autocomplete on the watchlist, from a local index of the top 500 coins | Done |
-| M6b | Portfolio value over time; stock history | Blocked for stocks: Tiingo's free plan forbids storing its data (see "Provider data and licensing") |
+| T1 | Stock price history on the asset page from Tiingo, owner-only, never stored | Done |
+| M6b | Portfolio value over time | Blocked for stocks: no free source allows storing history (see "Provider data and licensing") |
 
 ## Watchlist (W1 done)
 
@@ -228,6 +229,48 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   latest trade's asset type and no coin, with no network calls. Take a database backup before
   deploying it.
 
+## Stock price history (T1)
+
+- **Source:** Tiingo end-of-day prices, owner-only (`STOCK_DATA_ALLOWED_EMAILS`), behind the
+  structural gate (`UserStockHistoryDep`; the boundary test covers it). Finnhub stays the source
+  of current prices.
+- **Nothing stored:** per request, one call for the requested range, adjusted in memory,
+  returned, dropped (see Tiingo under "Provider data and licensing").
+- **The line is split-adjusted, dividends not included:** `a_i = c_i / ∏_{j>i} f_j`, the raw
+  close divided by every split factor on a later bar. A split's own (ex-date) bar is already
+  post-split, as a probe of two real splits confirmed. Tiingo's `adjClose` is never used: it
+  also adjusts for dividends. A factor that isn't 1 for another distribution (a spin-off) is
+  treated like a split.
+- **Markers:** keep the price actually paid (`price`) and sit on the line at `chart_price` (the
+  same adjustment). Undrawn reasons: `before_range`, `after_range`, `no_chart`.
+- **Ranges** end today (New York); ALL starts at the first trade, or covers 10 years with a note
+  when there are no trades.
+- **Provisional rule:** today's bar counts only after 20:00 New York
+  (`stock_history.TODAY_FINAL_AFTER`). It is to be removed if a market-hours probe shows Tiingo
+  never sends a partial bar for the current day. Still open: the only check so far ran at 03:40
+  New York on a Monday, when no partial bar could exist (the last bar was the previous Friday).
+- **Frontend:** the asset page draws stocks like crypto, with the note "Split-adjusted closing
+  prices. Dividends not included. End-of-day data from Tiingo, may be delayed." and the credit
+  "Data sourced by Tiingo".
+  - **The trades table** shows the price paid, plus "split-adjusted: X" when it differs.
+  - **Each unavailable reason** has its own message, the wait in minutes included.
+  - **History queries** stay in memory for the visit (no refetch on focus, no polling), and
+    logging in clears earlier queries.
+  - **There is no logout yet;** an expired session clears everything except the session
+    query.
+- **Request budget:** counts our own attempts only (404s and errors included): 45 in a rolling
+  hour, 950 per New York calendar day, and a pause after a 429 (`Retry-After`, else 15 minutes).
+  When spent, the chart is `available: false` with `rate_limited`. Counts reset on restart, by
+  design.
+- **Columns:** requests ask for `columns=close,splitFactor`. This is undocumented on the
+  end-of-day page but worked in a probe; a response missing either field is retried once in
+  full (a second attempt).
+- **Tickers:** sent to Tiingo with '-' for share classes (BRK.B becomes BRK-B); the user's
+  spelling is kept everywhere else.
+- **Known gap (out of scope): the ledger is not split-aware.** Holdings, cost basis and P/L use
+  the share counts and prices as entered. Across a split, a position's quantity and per-share
+  cost don't follow the split-adjusted chart; only the chart and its markers adjust.
+
 ## Provider data and licensing
 
 Terms read 2026-10-09 (CoinGecko) and 2026-10-16 (Finnhub, Tiingo). Re-read them before relying
@@ -245,14 +288,24 @@ on this: Finnhub's terms carry no date, and Tiingo rewrote its storage rules on 
   - **What we do:** stock data reaches only `STOCK_DATA_ALLOWED_EMAILS`, which should hold the
     owner's address alone. Startup logs a warning if it lists more than one address, and in
     development a notice when it is empty (everyone allowed). Only the count is logged.
-- **Tiingo** (not used; https://app.tiingo.com/tos/, last updated 2026-10-06):
+- **Tiingo** (stock history, transient; https://app.tiingo.com/tos/, last updated 2026-10-06):
   - The free plan is "Starter". §1.6(a): "you may not write, save, archive, back up, or
     otherwise retain Tiingo Data in any persistent or durable storage". This covers
-    "databases, object stores, file systems, logs, queues, archives, backups", and the same
-    limits apply to anything derived from the data.
+    "databases, object stores, file systems, logs, queues, archives, backups". It allows
+    processing "only transiently in volatile memory or in a temporary, non-persistent cache",
+    removed "before the applicable process, job, or user session ends".
+  - §1.6(c): the same limits apply to "Derived Products", so the split-adjusted series too.
   - §7.3: "All data via the API is for internal consumption only."
-  - **So:** no cached stock history on the free plan. Its developer program does allow apps where
-    each user supplies their own token, with Tiingo credited as the source; not built.
+  - **What we do (T1):** one request per chart view, adjusted in memory, returned and dropped:
+    no table, no coverage rows, no cache between requests, no stale fallback. Responses are
+    `Cache-Control: no-store`. Logs carry provider, endpoint and status only, and the HTTP
+    library's URL logging is kept to warnings. Only the allowlisted owner sees it.
+  - **Our interpretation, not legal advice:** the browser holding a series in memory during a
+    visit is within "a temporary, non-persistent cache … before the user session ends". The
+    frontend must keep it in memory only (no persisted query cache, no storage, no service
+    worker).
+  - Its developer program also allows apps where each user supplies their own token, with
+    Tiingo credited as the source; not built.
 - **CoinGecko** (crypto): see "Risk: stored CoinGecko data versus the API terms" under
   Market data (M4).
 
@@ -264,6 +317,7 @@ on this: Finnhub's terms carry no date, and Tiingo rewrote its storage rules on 
 | Last good stock quote (stale fallback) | `CachedProvider._last_good`, memory | Until restart |
 | Stock price-on-date closes | `CachedProvider._final`, memory | Until restart |
 | Stock search results | `CachedProvider._search`, memory | 1 h |
+| Stock daily history (Tiingo) | Memory of the one request that fetched it | Until the response is sent |
 | Portfolio value, P/L, daily change | Computed per request | Not stored |
 | Crypto quotes | `CachedProvider`, memory | `CRYPTO_QUOTE_TTL_SECONDS` (300 s) |
 | Crypto daily closes, coin index | `daily_closes`, `coin_index` (database, so also in backups) | Closes kept; index replaced daily |
@@ -404,7 +458,7 @@ CoinGecko responses on 2026-09-30.
   close. Any older date returns `price_unavailable` and the form asks for manual entry. Fixing
   this means a paid Finnhub plan, or a second adapter just for history. Tiingo's free tier has
   30+ years of EOD data but is licensed "internal use only", and its terms forbid storing any of
-  it (see "Provider data and licensing").
+  it (see "Provider data and licensing"); T1 uses it only for the chart, fetched per view.
 - **Crypto history is limited to the past 365 days** on CoinGecko's free/keyless API.
   Older dates return `price_unavailable`, so the price is entered manually.
 - **Crypto "close" is CoinGecko's 00:00 UTC snapshot of the following day**, not an

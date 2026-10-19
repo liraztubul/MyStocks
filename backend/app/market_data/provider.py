@@ -111,6 +111,10 @@ class ProviderUnavailableError(MarketDataError):
     code = "provider_unavailable"
 
 
+class IncompleteResponseError(ProviderUnavailableError):
+    """A narrowed request (only some columns asked for) came back without them."""
+
+
 @dataclass(frozen=True)
 class CoinRef:
     """A coin to price in a batch: the provider's id, and the user's ticker for display."""
@@ -133,6 +137,31 @@ class CoinListing:
 class CoinListProvider(Protocol):
     def top_coins(self, limit: int) -> list[CoinListing]:
         """The `limit` largest coins by market cap, largest first. Raises MarketDataError."""
+        ...
+
+
+@dataclass(frozen=True)
+class RawStockBar:
+    """One trading day as a transient history provider sent it: only what the split adjustment
+    needs. Never stored (see app.market_data.stock_history)."""
+
+    day: date
+    close: Decimal
+    # The split ratio taking effect on this bar (the ex-date); 1 on ordinary days.
+    split_factor: Decimal
+
+
+class TransientHistoryProvider(Protocol):
+    """Daily history fetched per request and never stored; unlike DailyHistoryProvider, which
+    fills the database cache."""
+
+    name: str
+
+    def fetch_daily(
+        self, ticker: str, start: date, end: date, *, narrow: bool = True
+    ) -> list[RawStockBar]:
+        """Daily bars for start..end inclusive, oldest first. `narrow` asks the provider for only
+        the columns needed; IncompleteResponseError if it didn't honour that."""
         ...
 
 

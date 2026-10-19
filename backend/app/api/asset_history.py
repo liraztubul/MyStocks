@@ -1,5 +1,9 @@
 """GET /api/assets/{symbol}/history: daily closes plus the user's own trades as chart markers.
 
+Crypto closes come from the price-history cache. Stock history is transient: fetched per request
+from Tiingo, split-adjusted in memory and never stored (app.market_data.stock_history), so it has
+no stale fallback; when it can't be fetched the answer is available=false with a reason.
+
 Works for any symbol, held or not (a watched symbol isn't a holding). It's a view, so the error
 convention in app.market_data.access applies: a chart this deployment can't show is 200 with
 available=false, and an ambiguous crypto ticker is 200 with the candidates to pick from. 404 is
@@ -9,8 +13,9 @@ only for an unknown symbol; 422 for an invalid range, or a type that can't be in
 import bisect
 import calendar
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import date, timezone
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -22,10 +27,20 @@ from app.core.security import CurrentUser
 from app.db.models import Transaction, UserAsset
 from app.db.session import DbSession
 from app.domain.enums import AssetType
-from app.market_data.access import UserMarketDataDep, UserPriceHistoryDep
-from app.market_data.dates import US_MARKET_TZ
-from app.market_data.history import STALE_UNAVAILABLE, DailyBar
-from app.market_data.provider import AmbiguousSymbolError, MarketDataError, SymbolNotFoundError
+from app.market_data.access import (
+    UserMarketDataDep,
+    UserPriceHistoryDep,
+    UserStockHistory,
+    UserStockHistoryDep,
+)
+from app.market_data.dates import US_MARKET_TZ, years_back
+from app.market_data.history import STALE_UNAVAILABLE
+from app.market_data.provider import (
+    AmbiguousSymbolError,
+    MarketDataError,
+    RateLimitedError,
+    SymbolNotFoundError,
+)
 from app.schemas.history import (
     BarRead,
     CoinCandidateRead,
@@ -47,6 +62,9 @@ HISTORY_LIMIT_NOTE = (
 )
 # "ALL" for an asset without trades: as far back as the provider goes (it clamps the start).
 _BEGINNING = date(1970, 1, 1)
+# Stocks without trades: "ALL" is capped (decades of daily bars would be fetched on every view).
+STOCK_ALL_YEARS = 10
+STOCK_ALL_NOTE = f"You have no trades in this stock, so All shows the past {STOCK_ALL_YEARS} years."
 
 
 def _months_back(day: date, months: int) -> date:
@@ -82,14 +100,18 @@ def _undrawn(trade: Transaction, day: date, reason: UndrawnReason) -> UndrawnTra
     )
 
 
+def _unadjusted(price: Decimal, _day: date) -> Decimal:
+    return price
+
+
 def _place_trades(
     trades: Sequence[Transaction],
     asset_type: AssetType,
-    bars: Sequence[DailyBar],
+    bar_days: Sequence[date],
     start: date,
     end: date,
+    chart_price: Callable[[Decimal, date], Decimal] = _unadjusted,
 ) -> tuple[list[MarkerRead], list[UndrawnTradeRead]]:
-    bar_days = [bar.day for bar in bars]
     markers, undrawn = [], []
     for trade in trades:
         day = _trade_day(trade, asset_type)
@@ -115,6 +137,7 @@ def _place_trades(
                     snapped=bar_days[index] != day,
                     quantity=trade.quantity,
                     price=trade.price,
+                    chart_price=chart_price(trade.price, day),
                 )
             )
     return markers, undrawn
@@ -141,6 +164,7 @@ def get_history(
     db: DbSession,
     market_data: UserMarketDataDep,
     history: UserPriceHistoryDep,
+    stocks: UserStockHistoryDep,
     range_: Annotated[HistoryRange, Query(alias="range")] = "1Y",
     asset_type: Annotated[AssetType | None, Query(alias="type")] = None,
     coin_id: Annotated[str | None, Query(alias="id", min_length=1, max_length=128)] = None,
@@ -160,12 +184,14 @@ def get_history(
         undrawn = [_undrawn(t, _trade_day(t, asset_type), "no_chart") for t in trades]
         return view.model_copy(update={**fields, "undrawn_trades": undrawn})
 
-    if asset_type is AssetType.STOCK and not history.stock_data_available:
-        # Decided before anything else, so the answer doesn't reveal whether the symbol exists.
-        return without_chart(available=False, unavailable_reason="not_available_on_deployment")
+    if asset_type is AssetType.STOCK:
+        if not stocks.stock_data_available:
+            # Decided before anything else, so the answer doesn't reveal whether the symbol exists.
+            return without_chart(available=False, unavailable_reason="not_available_on_deployment")
+        if not stocks.configured:
+            return without_chart(available=False, unavailable_reason="provider_not_configured")
+        return _stock_history(view, stocks, symbol, range_, trades, without_chart)
     if not history.has_provider(asset_type):
-        # No stock history provider (Tiingo's free plan forbids the storage this relies on);
-        # never invent data.
         return without_chart(available=False, unavailable_reason="provider_not_configured")
 
     # Which coin: the one asked for, else the user's recorded one, else the coin rules.
@@ -215,7 +241,9 @@ def get_history(
         markers = []
         undrawn = [_undrawn(t, _trade_day(t, asset_type), "different_coin") for t in trades]
     else:
-        markers, undrawn = _place_trades(trades, asset_type, result.bars, result.start, result.end)
+        markers, undrawn = _place_trades(
+            trades, asset_type, [b.day for b in result.bars], result.start, result.end
+        )
 
     cut_short = (
         result.earliest_available is not None and requested_start < result.earliest_available
@@ -240,5 +268,52 @@ def get_history(
             "as_of": result.as_of,
             "is_stale": result.is_stale,
             "stale_reason": result.stale_reason,
+        }
+    )
+
+
+def _stock_history(
+    view: HistoryRead,
+    stocks: UserStockHistory,
+    symbol: str,
+    range_: HistoryRange,
+    trades: Sequence[Transaction],
+    without_chart: Callable[..., HistoryRead],
+) -> HistoryRead:
+    today = stocks.now().astimezone(US_MARKET_TZ).date()
+    first_trade = _trade_day(trades[0], AssetType.STOCK) if trades else None
+    start = _range_start(range_, today, first_trade)
+    capped = range_ == "ALL" and first_trade is None
+    if capped:
+        start = years_back(today, STOCK_ALL_YEARS)
+    try:
+        series = stocks.series(symbol, start, today)
+    except SymbolNotFoundError as exc:
+        # Our own wording, never the provider's.
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail=f"No stock history found for {symbol}."
+        ) from exc
+    except RateLimitedError as exc:
+        return without_chart(
+            available=False, unavailable_reason="rate_limited", retry_after=exc.retry_after
+        )
+    except MarketDataError:
+        return without_chart(available=False, unavailable_reason="provider_unavailable")
+
+    end = series.bars[-1].day if series.bars else today
+    markers, undrawn = _place_trades(
+        trades, AssetType.STOCK, [b.day for b in series.bars], start, end, series.chart_price
+    )
+    return view.model_copy(
+        update={
+            "provider": series.provider,
+            "adjustment": "split_adjusted",
+            "range_start": start,
+            "range_end": end,
+            "range_note": STOCK_ALL_NOTE if capped else None,
+            "bars": [BarRead(date=b.day, close=b.close) for b in series.bars],
+            "splits": [SplitRead(date=x.day, ratio=x.factor) for x in series.splits],
+            "markers": markers,
+            "undrawn_trades": undrawn,
         }
     )

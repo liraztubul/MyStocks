@@ -64,3 +64,10 @@ def price_before_change(price: Decimal, change_pct: Decimal) -> Decimal | None:
     with exact():
         factor = 1 + change_pct / 100
         return price / factor if factor > 0 else None
+
+
+def years_back(day: date, years: int) -> date:
+    try:
+        return day.replace(year=day.year - years)
+    except ValueError:  # 29 February
+        return day.replace(year=day.year - years, day=28)

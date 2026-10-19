@@ -8,9 +8,12 @@ from app.domain.enums import AssetType, Side
 from app.schemas.decimal import DecimalString
 
 HistoryRange = Literal["1M", "3M", "6M", "YTD", "1Y", "ALL"]
-# Why there is no chart: stock data isn't shown to this user here, or no stock history provider
-# is configured on this deployment yet.
-UnavailableReason = Literal["not_available_on_deployment", "provider_not_configured"]
+# Why there is no chart: stock data isn't shown to this user here, no stock history provider is
+# configured, the stock history request budget is used up (or the provider said slow down), or the
+# provider failed. Stocks have no stale fallback: their history is never stored.
+UnavailableReason = Literal[
+    "not_available_on_deployment", "provider_not_configured", "rate_limited", "provider_unavailable"
+]
 # Why a trade isn't drawn: older than the chart, its day hasn't closed yet, there's no chart, or
 # the chart shows another coin than the one the user's trades are recorded under.
 UndrawnReason = Literal["before_range", "after_range", "no_chart", "different_coin"]
@@ -18,7 +21,8 @@ UndrawnReason = Literal["before_range", "after_range", "no_chart", "different_co
 
 class BarRead(BaseModel):
     date: date
-    # Unrounded Decimal string: closes are stored with 18 decimal places.
+    # Crypto: the raw close (18 decimal places). Stocks: split-adjusted, 10 decimal places (see
+    # HistoryRead.adjustment).
     close: DecimalString
 
 
@@ -36,7 +40,11 @@ class MarkerRead(BaseModel):
     trade_date: date
     snapped: bool
     quantity: DecimalString
+    # What the user actually paid or received.
     price: DecimalString
+    # Where the marker sits on the line: the price in the series' terms (stocks: divided by the
+    # splits after the trade). Equals price when nothing was adjusted.
+    chart_price: DecimalString
 
 
 class UndrawnTradeRead(BaseModel):
@@ -60,6 +68,11 @@ class HistoryRead(BaseModel):
     asset_type: AssetType
     available: bool
     unavailable_reason: UnavailableReason | None = None
+    # Stocks: closes are split-adjusted, dividends not included (computed per request from the
+    # provider's raw closes and split factors). Null for crypto: raw closes.
+    adjustment: Literal["split_adjusted"] | None = None
+    # With rate_limited: seconds until stock history may be asked for again (null if unknown).
+    retry_after: int | None = None
     # Crypto: several coins share the ticker and none was chosen; pick one (then pass ?id=).
     ambiguous: bool = False
     candidates: list[CoinCandidateRead] = []

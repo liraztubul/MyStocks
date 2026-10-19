@@ -36,6 +36,7 @@ from app.market_data.provider import (
     Quote,
 )
 from app.market_data.service import MarketData, SearchResult, SourceFailure, shared_market_data
+from app.market_data.stock_history import StockHistoryService, StockSeries, shared_stock_history
 
 STOCK_DATA_NOT_AVAILABLE = "Stock prices aren't available on this deployment."
 
@@ -175,3 +176,33 @@ def user_price_history(
 
 
 UserPriceHistoryDep = Annotated[UserPriceHistory, Depends(user_price_history)]
+
+
+class UserStockHistory:
+    """Transient stock history (nothing stored), behind the stock-data allowlist: a blocked
+    user never reaches the service or the provider."""
+
+    def __init__(self, shared: StockHistoryService, *, stock_data_available: bool) -> None:
+        self._shared = shared
+        self.stock_data_available = stock_data_available
+
+    @property
+    def configured(self) -> bool:
+        return self._shared.configured
+
+    def now(self) -> datetime:
+        return self._shared.now()
+
+    def series(self, symbol: str, start: date, end: date) -> StockSeries:
+        if not self.stock_data_available:
+            raise StockDataNotAvailableError()
+        return self._shared.series(symbol, start, end)
+
+
+def user_stock_history(
+    user: CurrentUser, shared: Annotated[StockHistoryService, Depends(shared_stock_history)]
+) -> UserStockHistory:
+    return UserStockHistory(shared, stock_data_available=stock_data_allowed(user.email))
+
+
+UserStockHistoryDep = Annotated[UserStockHistory, Depends(user_stock_history)]

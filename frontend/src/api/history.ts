@@ -4,6 +4,13 @@ import type { AssetType, Side } from './transactions'
 export type HistoryRange = '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL'
 export const HISTORY_RANGES: HistoryRange[] = ['1M', '3M', '6M', 'YTD', '1Y', 'ALL']
 
+// Why there is no chart (see the backend's HistoryRead.unavailable_reason).
+export type HistoryUnavailableReason =
+  | 'not_available_on_deployment'
+  | 'provider_not_configured'
+  | 'rate_limited'
+  | 'provider_unavailable'
+
 export type UndrawnReason = 'before_range' | 'after_range' | 'no_chart' | 'different_coin'
 
 // Decimal fields are strings at full precision (closes keep 18 places).
@@ -14,7 +21,11 @@ export interface HistoryMarker {
   trade_date: string
   snapped: boolean
   quantity: string
+  // What was actually paid or received.
   price: string
+  // Where the marker sits: for stocks, the price divided by the splits after the trade (equals
+  // price when nothing was adjusted).
+  chart_price: string
 }
 
 export interface UndrawnTrade {
@@ -37,7 +48,11 @@ export interface AssetHistory {
   symbol: string
   asset_type: AssetType
   available: boolean
-  unavailable_reason: 'not_available_on_deployment' | 'provider_not_configured' | null
+  unavailable_reason: HistoryUnavailableReason | null
+  // Stocks: closes are split-adjusted, dividends not included. Null for crypto (raw closes).
+  adjustment: 'split_adjusted' | null
+  // With rate_limited: seconds until stock history may be asked for again (null if unknown).
+  retry_after: number | null
   ambiguous: boolean
   candidates: CoinCandidate[]
   provider: string | null

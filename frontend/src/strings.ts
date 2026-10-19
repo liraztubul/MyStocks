@@ -173,6 +173,8 @@ export const t = {
     caption: (symbol: string, from: string, to: string, last: string, low: string, high: string) =>
       `${symbol} daily closes from ${from} to ${to}. Last close ${last} USD; low ${low}, high ${high}.`,
     markersLegend: 'On the chart, B marks a buy and S a sell, at the price you traded.',
+    markersLegendAdjusted:
+      'On the chart, B marks a buy and S a sell, at the price you traded adjusted for later splits like the line; the table below shows what you actually paid.',
     autoPicked: (coin: string) => `Showing ${coin} (picked automatically).`,
     notThisOne: 'Not this one?',
     pickerTitle: (symbol: string) => `Which ${symbol} do you mean?`,
@@ -193,6 +195,16 @@ export const t = {
     retry: 'Try again',
     empty: (symbol: string) => `No price history for ${symbol} yet.`,
     notOnDeployment: "Stock prices aren't available on this deployment, so there's no chart. Your trades are listed below.",
+    rateLimited: (minutes: number | null) =>
+      minutes
+        ? `Stock history request limit reached; try again in about ${minutes} minute${minutes === 1 ? '' : 's'}. Your trades are listed below.`
+        : 'Stock history request limit reached; try again later. Your trades are listed below.',
+    providerUnavailable:
+      "The stock price provider couldn't be reached, so there's no chart right now. Your trades are listed below.",
+    stockNote: 'Split-adjusted closing prices. Dividends not included. End-of-day data from Tiingo, may be delayed.',
+    captionAdjusted: 'Closes are split-adjusted; dividends are not included.',
+    attributionTiingo: 'Data sourced by Tiingo',
+    splitAdjusted: (price: string) => `split-adjusted: ${price}`,
     providerNotConfigured: "Stock price history isn't set up on this deployment yet, so there's no chart. Your trades are listed below.",
     stale: (when: string) => `Showing saved prices, last updated ${when}.`,
     staleNever: "Prices couldn't be loaded right now and none are saved yet.",
@@ -360,7 +372,7 @@ export const t = {
   },
   disclaimer: [
     'Cost basis: average cost; buy fees add to cost, sell fees reduce proceeds. All amounts in USD.',
-    'Prices come from free third-party APIs (Finnhub, CoinGecko) and may be delayed: stock prices refresh about once a minute, crypto prices about every 5 minutes.',
+    'Prices come from free third-party APIs (Finnhub, Tiingo, CoinGecko) and may be delayed: stock prices refresh about once a minute, crypto prices about every 5 minutes, and stock charts are end-of-day.',
     'For educational and personal tracking use only. Not financial advice.',
   ],
 }

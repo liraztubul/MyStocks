@@ -2070,6 +2070,11 @@ input.num {
   margin-block: var(--space-2);
 }
 
+/* The real price paid, with the split-adjusted one under it, wrapping instead of widening. */
+.trade-price .sub {
+  white-space: normal;
+}
+
 .trade-status {
   white-space: normal;
   min-inline-size: 10rem;

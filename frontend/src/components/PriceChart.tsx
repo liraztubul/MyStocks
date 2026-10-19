@@ -59,13 +59,14 @@ function chartOptions(reducedMotion: boolean): DeepPartial<ChartOptions> {
 }
 
 // Shape and letter carry buy/sell, never green or red (those mean gain and loss in this app).
-// Each sits at the exact trade price, so it lines up with the raw (unadjusted) close line.
+// Each sits at chart_price: the trade price in the line's terms (for stocks, divided by the splits
+// after the trade, like the split-adjusted closes), so a pre-split trade lines up with the line.
 function toMarkers(markers: HistoryMarker[]): SeriesMarker<Time>[] {
   const c = tokens()
   return markers.map((m) => ({
     time: m.date,
     position: 'atPriceMiddle',
-    price: toChartPoint(m.date, m.price).value,
+    price: toChartPoint(m.date, m.chart_price).value,
     shape: m.side === 'buy' ? 'arrowUp' : 'arrowDown',
     color: m.side === 'buy' ? c.buy : c.sell,
     text: m.side === 'buy' ? t.asset.buyLetter : t.asset.sellLetter,

@@ -39,6 +39,8 @@ export function useLogin() {
   return useMutation({
     mutationFn: login,
     onSuccess: (user) => {
+      // Nothing from an earlier session (prices, stock history) carries over to this account.
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
       queryClient.setQueryData(SESSION_NOTICE_KEY, null)
       queryClient.setQueryData(ME_KEY, user)
     },
@@ -74,6 +76,9 @@ export function useRegister() {
       await register(registration)
       return login({ email: registration.email, password: registration.password })
     },
-    onSuccess: (user) => queryClient.setQueryData(ME_KEY, user),
+    onSuccess: (user) => {
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
+      queryClient.setQueryData(ME_KEY, user)
+    },
   })
 }

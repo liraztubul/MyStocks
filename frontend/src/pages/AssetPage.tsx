@@ -11,6 +11,7 @@ import {
 import type { AssetType } from '../api/transactions'
 import { formatDateTime, formatDay, formatPrice } from '../components/format'
 import { CoinPicker } from '../components/CoinPicker'
+import { isSplitAdjusted, retryMinutes, unavailableMessage } from '../components/historyStates'
 import { FormError } from '../components/FormError'
 import { Icon } from '../components/Icon'
 import { PageHeading } from '../components/PageHeading'
@@ -21,6 +22,7 @@ import { t } from '../strings'
 
 const TRADINGVIEW_URL = 'https://www.tradingview.com/'
 const COINGECKO_URL = 'https://www.coingecko.com/en/api'
+const TIINGO_URL = 'https://www.tiingo.com'
 
 // One page per asset, held or not (a watched symbol isn't a holding). Lazily loaded with its
 // chart library, so other pages don't pay for it.
@@ -123,11 +125,7 @@ function AssetBody({
       <>
         <div className="notice notice-info" role="status">
           <Icon name="alert" size={18} className="notice-icon" />
-          <div>
-            {data.unavailable_reason === 'not_available_on_deployment'
-              ? t.asset.notOnDeployment
-              : t.asset.providerNotConfigured}
-          </div>
+          <div>{unavailableText(data)}</div>
         </div>
         <TradesTable data={data} />
       </>
@@ -149,6 +147,7 @@ function AssetBody({
           <div>{data.as_of ? t.asset.stale(formatDateTime(data.as_of)) : t.asset.staleNever}</div>
         </div>
       )}
+      {data.adjustment === 'split_adjusted' && <p className="hint">{t.asset.stockNote}</p>}
       {data.range_note && <p className="hint">{data.range_note}</p>}
       {data.bars.length === 0 ? (
         !data.is_stale && <p className="muted">{t.asset.empty(symbol)}</p>
@@ -161,9 +160,15 @@ function AssetBody({
           {t.asset.attributionChart}
         </a>
         {' · '}
-        <a href={COINGECKO_URL} rel="noreferrer" referrerPolicy="no-referrer">
-          {t.asset.attributionData}
-        </a>
+        {data.asset_type === 'stock' ? (
+          <a href={TIINGO_URL} rel="noreferrer" referrerPolicy="no-referrer">
+            {t.asset.attributionTiingo}
+          </a>
+        ) : (
+          <a href={COINGECKO_URL} rel="noreferrer" referrerPolicy="no-referrer">
+            {t.asset.attributionData}
+          </a>
+        )}
         {' · '}
         <a href="/third-party-notices.txt">{t.asset.attributionNotices}</a>
       </p>
@@ -221,7 +226,9 @@ function ChartFigure({ data, symbol }: { data: AssetHistory; symbol: string }) {
           formatPrice(low),
           formatPrice(high),
         )}{' '}
-        {data.markers.length > 0 && t.asset.markersLegend}
+        {data.adjustment === 'split_adjusted' && t.asset.captionAdjusted}{' '}
+        {data.markers.length > 0 &&
+          (data.adjustment === 'split_adjusted' ? t.asset.markersLegendAdjusted : t.asset.markersLegend)}
       </figcaption>
     </figure>
   )
@@ -269,6 +276,19 @@ function TypeChooser({ symbol }: { symbol: string }) {
 
 const UNDRAWN_TEXT: Record<UndrawnReason, string> = t.asset.undrawn
 
+function unavailableText(data: AssetHistory): string {
+  switch (unavailableMessage(data.unavailable_reason)) {
+    case 'notOnDeployment':
+      return t.asset.notOnDeployment
+    case 'providerNotConfigured':
+      return t.asset.providerNotConfigured
+    case 'rateLimited':
+      return t.asset.rateLimited(retryMinutes(data.retry_after))
+    case 'providerUnavailable':
+      return t.asset.providerUnavailable
+  }
+}
+
 // Every trade, drawn or not, so nothing depends on seeing the canvas.
 function TradesTable({ data }: { data: AssetHistory }) {
   const rows = [
@@ -278,6 +298,7 @@ function TradesTable({ data }: { data: AssetHistory }) {
       side: m.side,
       quantity: m.quantity,
       price: m.price,
+      adjusted: isSplitAdjusted(m.price, m.chart_price) ? m.chart_price : null,
       status: m.snapped ? t.asset.snapped(formatDay(m.date)) : t.asset.onChart,
     })),
     ...data.undrawn_trades.map((u) => ({
@@ -286,6 +307,7 @@ function TradesTable({ data }: { data: AssetHistory }) {
       side: u.side,
       quantity: u.quantity,
       price: u.price,
+      adjusted: null,
       status: UNDRAWN_TEXT[u.reason],
     })),
   ].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0))
@@ -315,7 +337,10 @@ function TradesTable({ data }: { data: AssetHistory }) {
                     <span className={`side side-${r.side}`}>{t.transactions.sides[r.side]}</span>
                   </td>
                   <td className="num">{r.quantity}</td>
-                  <td className="num">{formatPrice(r.price)}</td>
+                  <td className="num trade-price">
+                    {formatPrice(r.price)}
+                    {r.adjusted && <span className="sub">{t.asset.splitAdjusted(formatPrice(r.adjusted))}</span>}
+                  </td>
                   <td className="trade-status">{r.status}</td>
                 </tr>
               ))}

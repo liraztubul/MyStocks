@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # Optional so the app still boots without them; stock lookups then report "not configured".
     finnhub_api_key: str | None = None
     coingecko_demo_api_key: str | None = None
+    # Daily stock history (owner-only, fetched per view and never stored). Unset: stock charts
+    # say the provider isn't configured.
+    tiingo_api_key: str | None = None
     # How long a crypto quote is reused. The Demo plan has a monthly cap (10k calls), so crypto
     # gets a longer cache than stocks (60 s, Finnhub's per-minute limit is the constraint there).
     crypto_quote_ttl_seconds: float = Field(default=300, ge=30)

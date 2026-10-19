@@ -33,6 +33,9 @@ services:
         sync: false
       - key: COINGECKO_DEMO_API_KEY
         sync: false
+      # Stock charts (owner-only, fetched per view, never stored). Unset: "not configured".
+      - key: TIINGO_API_KEY
+        sync: false
       # Unset or empty: registration is disabled in production.
       - key: REGISTRATION_INVITE_CODE
         sync: false
