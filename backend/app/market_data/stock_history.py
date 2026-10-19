@@ -11,7 +11,9 @@ Financial assumptions, stated wherever the series is shown:
   a later bar. Dividends are not included (Tiingo's adjClose is never used: it also adjusts for
   dividends). A factor that isn't 1 because of another distribution (e.g. a spin-off) is
   treated like a split.
-- End-of-day data, by US trading day; it may be delayed.
+- End-of-day data, by US trading day; it may be delayed. Tiingo sends no bar for the day in
+  progress (a probe during market hours on 2026-10-19 returned the previous trading day as the
+  latest), so every bar is a finished day.
 
 Ungated: endpoints reach it only through app.market_data.access.UserStockHistoryDep.
 """
@@ -43,11 +45,6 @@ from app.market_data.tiingo_provider import TiingoProvider
 
 ADJUSTED_PLACES = 10
 _ADJUSTED_STEP = Decimal(1).scaleb(-ADJUSTED_PLACES)
-
-# Provisional, until a probe during market hours shows whether Tiingo ever returns a partial bar
-# for the current day: before 20:00 New York time (when, per Tiingo, exchange corrections end)
-# today's bar is not treated as final. Removing the rule: make drop_unfinished_today return bars.
-TODAY_FINAL_AFTER = clock_time(20, 0)
 
 # Below Tiingo's Starter limits (50 requests an hour, 1,000 a day), to fail fast with a clear
 # reason instead of spending real 429s. Every attempt counts, errors and 404s included: we can't
@@ -108,13 +105,6 @@ def split_adjust(bars: Sequence[RawStockBar]) -> list[AdjustedBar]:
             later *= bar.split_factor
     adjusted.reverse()
     return adjusted
-
-
-def drop_unfinished_today(bars: list[RawStockBar], now: datetime) -> list[RawStockBar]:
-    local = now.astimezone(US_MARKET_TZ)
-    if bars and bars[-1].day == local.date() and local.time() < TODAY_FINAL_AFTER:
-        return bars[:-1]
-    return bars
 
 
 def _new_york_day(now: datetime) -> date:
@@ -215,7 +205,6 @@ class StockHistoryService:
         except IncompleteResponseError:
             # The narrowing parameter is undocumented; once without it (a second attempt).
             raw = self._fetch(ticker, start, end, narrow=False)
-        raw = drop_unfinished_today(raw, self._now())
         return StockSeries(
             provider=self._provider.name,
             bars=split_adjust(raw),

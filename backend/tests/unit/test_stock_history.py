@@ -1,4 +1,4 @@
-"""Transient stock history: split math, the provisional intraday rule, the request budget and the
+"""Transient stock history: split math, the request budget and the
 service. Every bar here is synthetic; expected values are worked out by hand in the comments."""
 
 from collections.abc import Sequence
@@ -21,7 +21,6 @@ from app.market_data.stock_history import (
     Split,
     StockHistoryService,
     StockSeries,
-    drop_unfinished_today,
     provider_ticker,
     split_adjust,
 )
@@ -120,32 +119,6 @@ def test_marker_prices_are_adjusted_like_the_line() -> None:
 def test_tickers_use_dashes_for_share_classes() -> None:
     assert provider_ticker(" brk.b ") == "BRK-B"
     assert provider_ticker("AAPL") == "AAPL"
-
-
-# --- Provisional intraday rule -------------------------------------------------------------------
-
-NY_TODAY = date(2026, 3, 6)
-
-
-@pytest.mark.parametrize(
-    ("utc_now", "kept"),
-    [
-        (datetime(2026, 3, 6, 20, 59, tzinfo=UTC), 1),  # 15:59 New York (EST): today's bar dropped
-        (datetime(2026, 3, 7, 0, 59, tzinfo=UTC), 1),  # 19:59 New York: still dropped
-        (datetime(2026, 3, 7, 1, 0, tzinfo=UTC), 2),  # 20:00 New York: final, kept
-    ],
-)
-def test_todays_bar_counts_only_after_eight_pm_new_york(utc_now: datetime, kept: int) -> None:
-    raw = [
-        RawStockBar(NY_TODAY - timedelta(days=1), Decimal(10), Decimal(1)),
-        RawStockBar(NY_TODAY, Decimal(11), Decimal(1)),
-    ]
-    assert len(drop_unfinished_today(raw, utc_now)) == kept
-
-
-def test_a_last_bar_from_an_earlier_day_is_kept() -> None:
-    raw = [RawStockBar(NY_TODAY - timedelta(days=1), Decimal(10), Decimal(1))]
-    assert drop_unfinished_today(raw, datetime(2026, 3, 6, 15, tzinfo=UTC)) == raw
 
 
 # --- Request budget (counts only) ----------------------------------------------------------------

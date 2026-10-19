@@ -245,10 +245,11 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   same adjustment). Undrawn reasons: `before_range`, `after_range`, `no_chart`.
 - **Ranges** end today (New York); ALL starts at the first trade, or covers 10 years with a note
   when there are no trades.
-- **Provisional rule:** today's bar counts only after 20:00 New York
-  (`stock_history.TODAY_FINAL_AFTER`). It is to be removed if a market-hours probe shows Tiingo
-  never sends a partial bar for the current day. Still open: the only check so far ran at 03:40
-  New York on a Monday, when no partial bar could exist (the last bar was the previous Friday).
+- **No partial bars:** a probe at 10:04 New York on Monday 2026-10-19 (market open) returned the
+  previous Friday as the latest bar, with none for the day in progress. So every bar is treated
+  as a finished day, and the provisional "drop today's bar before 20:00" rule was removed. This
+  was one observation; it wasn't checked between the 16:00 close and Tiingo's 20:00 correction
+  cutoff.
 - **Frontend:** the asset page draws stocks like crypto, with the note "Split-adjusted closing
   prices. Dividends not included. End-of-day data from Tiingo, may be delayed." and the credit
   "Data sourced by Tiingo".
