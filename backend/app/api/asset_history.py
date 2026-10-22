@@ -60,6 +60,10 @@ HISTORY_LIMIT_NOTE = (
     "Crypto history covers the past 365 days on the free data plan, so older days aren't "
     "charted. Older trades are still listed below the chart."
 )
+# The same, for a coin the user has no trades in (e.g. opened from the watchlist).
+HISTORY_LIMIT_NOTE_NO_TRADES = (
+    "Crypto history covers the past 365 days on the free data plan, so older days aren't charted."
+)
 # "ALL" for an asset without trades: as far back as the provider goes (it clamps the start).
 _BEGINNING = date(1970, 1, 1)
 # Stocks without trades: "ALL" is capped (decades of daily bars would be fetched on every view).
@@ -198,6 +202,10 @@ def get_history(
     auto_picked, coin_name = False, None
     if coin_id:
         series = coin_id
+        # The coin asked for is the user's own, chosen by the rules: keep saying so.
+        auto_picked = (
+            record is not None and record.provider_id == coin_id and record.id_source == RULE
+        )
     elif record is not None and record.provider_id:
         series, auto_picked = record.provider_id, record.id_source == RULE
     else:
@@ -256,7 +264,11 @@ def get_history(
             "coin_auto_picked": auto_picked,
             "range_start": result.start,
             "range_end": result.end,
-            "range_note": HISTORY_LIMIT_NOTE if cut_short else None,
+            "range_note": (
+                (HISTORY_LIMIT_NOTE if trades else HISTORY_LIMIT_NOTE_NO_TRADES)
+                if cut_short
+                else None
+            ),
             "bars": [BarRead(date=b.day, close=b.close) for b in result.bars],
             "splits": [
                 SplitRead(date=b.day, ratio=b.split_factor)

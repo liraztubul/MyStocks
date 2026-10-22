@@ -12,11 +12,23 @@ interface Props {
   showRank?: boolean
   // A coin is picked either by following a link or by a callback (a form re-submitting).
   pickHref?: (id: string) => string
+  // Router state carried along on picked links (e.g. where the page was opened from).
+  linkState?: unknown
   onPick?: (id: string) => void
   disabled?: boolean
 }
 
-export function CoinPicker({ symbol, candidates, body, note, showRank = true, pickHref, onPick, disabled }: Props) {
+export function CoinPicker({
+  symbol,
+  candidates,
+  body,
+  note,
+  showRank = true,
+  pickHref,
+  linkState,
+  onPick,
+  disabled,
+}: Props) {
   return (
     <div className="coin-picker">
       <h3>{t.asset.pickerTitle(symbol)}</h3>
@@ -44,7 +56,7 @@ export function CoinPicker({ symbol, candidates, body, note, showRank = true, pi
                     {content}
                   </button>
                 ) : (
-                  <Link className="picker-item" to={pickHref?.(c.id) ?? '#'}>
+                  <Link className="picker-item" to={pickHref?.(c.id) ?? '#'} state={linkState}>
                     {content}
                   </Link>
                 )}

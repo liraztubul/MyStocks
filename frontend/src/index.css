@@ -2075,6 +2075,40 @@ input.num {
   white-space: normal;
 }
 
+/* The stock's latest price (Finnhub), above the daily chart. Its height doesn't jump between the
+   placeholder and the value. */
+.latest-price {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-block-size: 3.25rem;
+  margin: 0;
+}
+
+.latest-price-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+
+.latest-price-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.latest-price-value {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.latest-price .hint {
+  margin: 0;
+}
+
 .trade-status {
   white-space: normal;
   min-inline-size: 10rem;
@@ -2334,6 +2368,37 @@ button.picker-item:disabled {
   gap: var(--space-1) var(--space-3);
   padding-block: var(--space-3);
   border-block-end: 1px solid var(--border);
+}
+
+/* The ticker link is stretched over the whole row (one real link per row, nothing nested), so
+   the row opens the chart from anywhere; the remove button is stacked above it. */
+.watch-row {
+  position: relative;
+}
+
+.watch-row .row-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.watch-row:hover {
+  background: var(--surface-2);
+}
+
+.watch-row:has(.row-link:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.watch-row .row-link:focus-visible {
+  outline: none;
+}
+
+.watch-remove {
+  position: relative;
+  z-index: 1;
 }
 
 .watch-id {

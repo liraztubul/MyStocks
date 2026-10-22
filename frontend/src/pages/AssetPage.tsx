@@ -1,6 +1,6 @@
 import Big from 'big.js'
 import { useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router'
 import { ApiError } from '../api/client'
 import {
   HISTORY_RANGES,
@@ -10,13 +10,16 @@ import {
 } from '../api/history'
 import type { AssetType } from '../api/transactions'
 import { formatDateTime, formatDay, formatPrice } from '../components/format'
+import { backTarget } from '../components/backLink'
 import { CoinPicker } from '../components/CoinPicker'
+import { DayChange } from '../components/DayChange'
+import { latestPriceState, newYorkTime } from '../components/latestPrice'
 import { isSplitAdjusted, retryMinutes, unavailableMessage } from '../components/historyStates'
 import { FormError } from '../components/FormError'
 import { Icon } from '../components/Icon'
 import { PageHeading } from '../components/PageHeading'
 import PriceChart from '../components/PriceChart'
-import { useAssetSearch } from '../hooks/useAssets'
+import { useAssetSearch, useLatestQuote } from '../hooks/useAssets'
 import { useAssetHistory } from '../hooks/useAssetHistory'
 import { t } from '../strings'
 
@@ -33,6 +36,8 @@ export default function AssetPage() {
   const id = search.get('id')
   const choosing = search.get('choose') === '1'
   const [range, setRange] = useState<HistoryRange>('1Y')
+  // Router state survives the page's own links (they pass it on), so Back stays right.
+  const back = backTarget(useLocation().state)
   const history = useAssetHistory({ symbol, range, type, id })
 
   return (
@@ -46,6 +51,7 @@ export default function AssetPage() {
           </span>
         )}
       </div>
+      <LatestPrice symbol={symbol} type={type} history={history} />
       <AssetBody
         symbol={symbol}
         range={range}
@@ -53,9 +59,15 @@ export default function AssetPage() {
         choosing={choosing}
         history={history}
       />
-      <Link className="button button-ghost page-action" to="/">
-        {t.holding.backToDashboard}
-      </Link>
+      {back === 'watchlist' ? (
+        <Link className="button button-ghost page-action" to="/watchlist">
+          {t.holding.backToWatchlist}
+        </Link>
+      ) : (
+        <Link className="button button-ghost page-action" to="/">
+          {t.holding.backToDashboard}
+        </Link>
+      )}
     </section>
   )
 }
@@ -74,6 +86,7 @@ function AssetBody({
   history: ReturnType<typeof useAssetHistory>
 }) {
   const { data, error, isPending, refetch, isFetching } = history
+  const linkState = useLocation().state
 
   if (isPending) return <ChartSkeleton />
   if (error instanceof ApiError && error.status === 404) {
@@ -107,6 +120,7 @@ function AssetBody({
           body={t.asset.pickerBody}
           note={t.asset.pickerNote(symbol)}
           pickHref={pickHref}
+          linkState={linkState}
         />
         <TradesTable data={data} />
       </>
@@ -137,7 +151,9 @@ function AssetBody({
       {data.coin_auto_picked && (
         <p className="hint coin-disclosure">
           {t.asset.autoPicked(data.coin_name ?? data.coin_id ?? symbol)}{' '}
-          <Link to={`?type=crypto&choose=1`}>{t.asset.notThisOne}</Link>
+          <Link to={`?type=crypto&choose=1`} state={linkState}>
+            {t.asset.notThisOne}
+          </Link>
         </p>
       )}
       <RangeButtons value={range} onChange={onRange} />
@@ -174,6 +190,68 @@ function AssetBody({
       </p>
       <TradesTable data={data} />
     </>
+  )
+}
+
+// The stock's latest price (Finnhub), shown apart from the daily chart (Tiingo): a separate value,
+// never mixed into the series, the markers or the range.
+function LatestPrice({
+  symbol,
+  type,
+  history,
+}: {
+  symbol: string
+  type: AssetType | null
+  history: ReturnType<typeof useAssetHistory>
+}) {
+  const data = history.data
+  const isStock = (data?.asset_type ?? type) === 'stock' && data !== undefined
+  const blockedByChart = data?.unavailable_reason === 'not_available_on_deployment'
+  const quote = useLatestQuote(symbol, isStock && !blockedByChart)
+  const error = quote.error instanceof ApiError ? quote.error : null
+  const state = latestPriceState({
+    isStock,
+    blockedByChart,
+    hasData: quote.data !== undefined,
+    pending: quote.isPending,
+    errorStatus: error?.status ?? (quote.error ? 0 : null),
+    errorCode: error?.code ?? null,
+  })
+  if (state === 'hidden') return null
+  if (state === 'loading') {
+    return (
+      <div className="latest-price" aria-busy="true">
+        <span className="visually-hidden">{t.common.loading}</span>
+        <span className="skeleton skeleton-line" aria-hidden="true" />
+      </div>
+    )
+  }
+  if (state === 'unavailable' || !quote.data) {
+    return (
+      <p className="latest-price hint" role="status">
+        {t.asset.latestUnavailable}
+      </p>
+    )
+  }
+  const q = quote.data
+  return (
+    <div className="latest-price">
+      <p className="latest-price-main">
+        <span className="latest-price-label">{t.asset.latestLabel}</span>{' '}
+        <bdi className="latest-price-value">{formatPrice(q.price)}</bdi> <span className="unit">{q.currency}</span>{' '}
+        <DayChange amount={q.change} pct={q.change_pct} basis={q.change_basis} referenceAt={q.reference_at} />
+      </p>
+      <p className="hint">
+        {q.is_stale && (
+          <span className="tag tag-stale">
+            <Icon name="clock" size={12} />
+            {t.watchlist.stale}
+          </span>
+        )}{' '}
+        {t.asset.latestAsOf(newYorkTime(q.as_of, t.locale))} · {t.asset.latestSource}
+        {q.is_stale && <span className="visually-hidden">: {t.asset.latestStale}</span>}
+      </p>
+    </div>
   )
 }
 
@@ -236,6 +314,7 @@ function ChartFigure({ data, symbol }: { data: AssetHistory; symbol: string }) {
 
 // "Not this one?": the coins search finds for the ticker, exact matches first.
 function SearchPicker({ symbol }: { symbol: string }) {
+  const linkState = useLocation().state
   const search = useAssetSearch(symbol)
   if (search.isPending) return <ChartSkeleton />
   const coins = (search.data?.results ?? []).filter((r) => r.asset_type === 'crypto')
@@ -249,6 +328,7 @@ function SearchPicker({ symbol }: { symbol: string }) {
       note={t.asset.pickerNote(symbol)}
       showRank={false}
       pickHref={pickHref}
+          linkState={linkState}
     />
   )
 }
@@ -258,15 +338,16 @@ function pickHref(id: string): string {
 }
 
 function TypeChooser({ symbol }: { symbol: string }) {
+  const { state } = useLocation()
   return (
     <div className="coin-picker">
       <h3>{t.asset.typeTitle(symbol)}</h3>
       <p className="muted">{t.asset.typeBody}</p>
       <div className="range-group">
-        <Link className="button button-secondary" to="?type=stock">
+        <Link className="button button-secondary" to="?type=stock" state={state}>
           {t.asset.stock}
         </Link>
-        <Link className="button button-secondary" to="?type=crypto">
+        <Link className="button button-secondary" to="?type=crypto" state={state}>
           {t.asset.crypto}
         </Link>
       </div>

@@ -4,6 +4,7 @@ import { ApiError, type ErrorCandidate } from '../api/client'
 import type { WatchlistItem } from '../api/watchlist'
 import { isNotAvailableOnDeployment, writeErrorMessage } from '../api/writeErrors'
 import { assetPath } from '../components/assetLinks'
+import { FROM_WATCHLIST } from '../components/backLink'
 import { CoinCombobox, type CoinComboboxHandle } from '../components/CoinCombobox'
 import { CoinPicker } from '../components/CoinPicker'
 import { formatQuotePrice, formatRelative, formatSignedPercent } from '../components/format'
@@ -134,7 +135,13 @@ function WatchRow({
   return (
     <li className="watch-row">
       <div className="watch-id">
-        <Link className="symbol-link symbol" to={assetPath(item.symbol, item.asset_type, item.coin_id)}>
+        {/* The row's only link, stretched over the whole row (CSS); Remove sits above it. */}
+        <Link
+          className="symbol-link symbol row-link"
+          to={assetPath(item.symbol, item.asset_type, item.coin_id)}
+          state={FROM_WATCHLIST}
+          aria-label={t.holdings.assetLink(item.symbol)}
+        >
           {item.symbol}
         </Link>
         {item.coin_id && (

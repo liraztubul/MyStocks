@@ -223,6 +223,34 @@ def test_rule_picked_coin_is_reported_as_such(api: TestClient) -> None:
     )
 
 
+def test_explicit_id_of_a_rule_picked_record_stays_disclosed(api: TestClient) -> None:
+    # The watchlist links with the recorded coin's id; a rule pick must still say so.
+    trade(api, "BTC", "2026-09-10T10:00:00Z")  # no id: the coin rules pick bitcoin
+    body = history(api, "BTC", type="crypto", id="bitcoin").json()
+    assert (body["coin_id"], body["coin_auto_picked"]) == ("bitcoin", True)
+
+
+def test_explicit_id_of_a_user_picked_record_is_not_automatic(api: TestClient) -> None:
+    trade(api, "BTC", "2026-09-10T10:00:00Z", provider_id="bitcoin")
+    body = history(api, "BTC", type="crypto", id="bitcoin").json()
+    assert body["coin_auto_picked"] is False
+
+
+def test_explicit_id_of_another_coin_is_not_automatic(api: TestClient) -> None:
+    trade(api, "BTC", "2026-09-10T10:00:00Z")  # rule pick: bitcoin
+    body = history(api, "BTC", type="crypto", id="bitcoin-cash").json()
+    assert (body["coin_id"], body["coin_auto_picked"]) == ("bitcoin-cash", False)
+
+
+def test_all_without_trades_has_no_sentence_about_older_trades(api: TestClient) -> None:
+    body = history(api, "ETH", type="crypto", id="ethereum", range="ALL").json()
+    assert body["range_note"] == (
+        "Crypto history covers the past 365 days on the free data plan, so older days aren't "
+        "charted."
+    )
+    assert "Older trades" not in body["range_note"]
+
+
 def test_ambiguous_ticker_returns_candidates_and_no_bars(api: TestClient) -> None:
     response = history(api, "PEPE", type="crypto")
     assert response.status_code == 200
@@ -273,7 +301,8 @@ def test_trades_outside_the_chart_are_listed_not_drawn(api: TestClient) -> None:
     today = trade(api, "BTC", "2026-10-06T09:00:00Z")
     body = history(api, "BTC", range="ALL").json()
     # ALL starts at the first trade but is capped at the provider's 365 days, with a note.
-    assert body["range_start"] == "2025-10-06" and body["range_note"]
+    assert body["range_start"] == "2025-10-06"
+    assert "Older trades are still listed below the chart." in body["range_note"]
     assert [m["transaction_id"] for m in body["markers"]] == [inside["id"]]
     assert {(u["transaction_id"], u["reason"]) for u in body["undrawn_trades"]} == {
         (old["id"], "before_range"),

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Path, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from app.domain.enums import AssetType
+from app.domain.precision import exact
 from app.market_data.access import StockDataNotAvailableError, UserMarketDataDep
 from app.market_data.provider import (
     AmbiguousSymbolError,
@@ -13,6 +14,7 @@ from app.market_data.provider import (
     PriceUnavailableError,
     Quote,
     RateLimitedError,
+    ReferenceKind,
     SymbolNotFoundError,
 )
 from app.schemas.assets import (
@@ -21,6 +23,7 @@ from app.schemas.assets import (
     QuoteRead,
     UnavailableSource,
 )
+from app.schemas.portfolio import DayChangeBasis
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -79,14 +82,42 @@ def search_assets(
     )
 
 
+_BASES: dict[ReferenceKind, DayChangeBasis] = {
+    ReferenceKind.PREVIOUS_CLOSE: "since_previous_close",
+    ReferenceKind.ROLLING_24H: "rolling_24h",
+}
+
+
+def _quote_read(quote: Quote) -> QuoteRead:
+    read = QuoteRead.model_validate(quote)
+    reference = quote.reference_price
+    if reference is None or reference <= 0 or quote.reference_kind is None:
+        return read
+    with exact():
+        change = quote.price - reference
+        change_pct = change / reference * 100
+    # Through the constructor, not model_copy(update=...): that skips validation, and with it
+    # the rounding of Money and Percent.
+    return QuoteRead(
+        **read.model_dump(exclude={"change", "change_pct", "change_basis", "reference_at"}),
+        change=change,
+        change_pct=change_pct,
+        change_basis=_BASES[quote.reference_kind],
+        reference_at=quote.reference_at,
+    )
+
+
 @router.get("/{symbol}/quote", response_model=QuoteRead)
 def get_quote(
     symbol: Symbol,
     asset_type: AssetType,
     market_data: UserMarketDataDep,
     provider_id: ProviderId = None,
-) -> Quote:
-    return market_data.provider(asset_type).get_quote(symbol.strip(), provider_id)
+) -> QuoteRead:
+    # Stocks for a blocked user: 403 not_available_on_deployment from the gate, before any
+    # provider or cache. Stocks for an allowed user: Finnhub through the shared 60 s cache, with
+    # its last-good copy marked stale when Finnhub fails (nothing stored in the database).
+    return _quote_read(market_data.provider(asset_type).get_quote(symbol.strip(), provider_id))
 
 
 @router.get("/{symbol}/price-on", response_model=PriceOnDateRead)

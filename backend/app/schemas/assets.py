@@ -4,7 +4,8 @@ from pydantic import BaseModel, ConfigDict
 
 from app.domain.enums import AssetType
 from app.market_data.provider import PriceKind
-from app.schemas.decimal import Money
+from app.schemas.decimal import Money, Percent
+from app.schemas.portfolio import DayChangeBasis
 
 # Providers can quote more decimals than Numeric(28, 10) stores (tiny-cap coins); rounding to
 # 10 places means an auto-filled price is always one the transaction endpoint will accept.
@@ -42,6 +43,12 @@ class QuoteRead(_FromAttributes):
     currency: str
     as_of: datetime
     is_stale: bool
+    # The change from the quote's reference (stocks: the previous session's close; crypto: 24h
+    # ago), as the dashboard measures it. All null when the provider gave no usable reference.
+    change: Money | None = None
+    change_pct: Percent | None = None
+    change_basis: DayChangeBasis | None = None
+    reference_at: datetime | None = None
 
 
 class PriceOnDateRead(_FromAttributes):

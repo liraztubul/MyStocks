@@ -58,6 +58,14 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
     - Each row shows "updated …" and a visible stale tag.
     - The list polls every 60 s, paused while the tab is hidden.
     - An ambiguous ticker opens the coin picker, which re-submits with the chosen id.
+- **Rows open the chart:** the ticker link is stretched over the whole row, so a click
+  anywhere on the row opens `/assets/<ticker>?type=crypto&id=<the recorded coin>`. It is still
+  one real link per row; the remove button sits above it. A coin the rules picked is still
+  disclosed as "picked automatically" there.
+  - **Back link:** the watchlist passes router state, so the asset page's Back link returns to
+    the watchlist (a pasted URL or a new tab falls back to the dashboard).
+  - **Wording:** a coin without trades gets the 365-day note without the sentence about older
+    trades.
 - **W1.1 (done): coin autocomplete.**
   - **Index:** `coin_index` holds the top 500 coins by market cap (id, ticker, name, rank),
     public data shared by every user. It is filled from CoinGecko `/coins/markets` (2 pages
@@ -268,9 +276,26 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   full (a second attempt).
 - **Tickers:** sent to Tiingo with '-' for share classes (BRK.B becomes BRK-B); the user's
   spelling is kept everywhere else.
+- **Latest price:** a separate "Latest price" line above the chart, from Finnhub through the
+  existing gated quote endpoint (`GET /api/assets/{symbol}/quote?asset_type=stock`).
+  - **What it shows:** the price in USD, "as of HH:MM New York time", the change since the
+    previous close (computed server-side in Decimal), and the label "Finnhub, may be delayed".
+    It is never mixed into the Tiingo series, the markers or the range.
+  - **Polling:** every 60 s while the tab is visible (the server's quote cache is 60 s), paused
+    when hidden, no refetch on focus, no automatic retry.
+  - **Failures:** a Finnhub failure shows the last saved quote marked stale with its time, or
+    "Latest price unavailable right now"; an unknown ticker hides the line.
+  - **Blocked users:** no line and no request (the chart already says stock data isn't
+    available). The endpoint itself answers 403 before any provider call.
+- **Rejected: Tiingo IEX** (`/iex/<ticker>`) as the latest-price source. A probe during market
+  hours (2026-10-22) returned null `last`, `lastSaleTimestamp` and `quoteTimestamp`, so the
+  price's freshness can't be told, and the Starter plan's no-storage rule (§1.6) applies to it
+  as well.
 - **Known gap (out of scope): the ledger is not split-aware.** Holdings, cost basis and P/L use
   the share counts and prices as entered. Across a split, a position's quantity and per-share
-  cost don't follow the split-adjusted chart; only the chart and its markers adjust.
+  cost don't follow the split-adjusted chart; only the chart and its markers adjust. **Until it
+  is, enter trades in post-split quantities and prices** (e.g. after a 4:1 split, 1 share bought
+  at 400 is entered as 4 shares at 100). Then the latest price and the holding's value agree.
 
 ## Provider data and licensing
 
@@ -289,6 +314,9 @@ on this: Finnhub's terms carry no date, and Tiingo rewrote its storage rules on 
   - **What we do:** stock data reaches only `STOCK_DATA_ALLOWED_EMAILS`, which should hold the
     owner's address alone. Startup logs a warning if it lists more than one address, and in
     development a notice when it is empty (everyone allowed). Only the count is logged.
+  - **Demos:** don't screen-share live stock prices (dashboard values, the latest price, stock
+    charts) with others, e.g. in an interview or a recorded walkthrough. That is showing data
+    and derived results to third parties. Use crypto, or a deployment without stock keys.
 - **Tiingo** (stock history, transient; https://app.tiingo.com/tos/, last updated 2026-10-06):
   - The free plan is "Starter". §1.6(a): "you may not write, save, archive, back up, or
     otherwise retain Tiingo Data in any persistent or durable storage". This covers
@@ -319,6 +347,8 @@ on this: Finnhub's terms carry no date, and Tiingo rewrote its storage rules on 
 | Stock price-on-date closes | `CachedProvider._final`, memory | Until restart |
 | Stock search results | `CachedProvider._search`, memory | 1 h |
 | Stock daily history (Tiingo) | Memory of the one request that fetched it | Until the response is sent |
+| Stock latest price (Finnhub, asset page) | The same quote cache as above (`_live` 60 s, `_last_good` until restart) | As above |
+| Stock intraday via Tiingo IEX | Not used (rejected: null last-sale fields, unknown freshness, Starter no-storage rule) | n/a |
 | Portfolio value, P/L, daily change | Computed per request | Not stored |
 | Crypto quotes | `CachedProvider`, memory | `CRYPTO_QUOTE_TTL_SECONDS` (300 s) |
 | Crypto daily closes, coin index | `daily_closes`, `coin_index` (database, so also in backups) | Closes kept; index replaced daily |
@@ -560,6 +590,20 @@ CoinGecko responses on 2026-09-30.
     -> 1 call); raise the TTL; fall back to keyless when the monthly credits are used up.
     Whether CDN-cached responses cost a credit is not documented; compare the hourly counts with
     the Developer Dashboard.
+  - **Charts opened from the watchlist** cost only the existing history call. A coin's first
+    1Y view fetches the year once (1 call; shorter ranges and ALL without trades reuse it).
+    After that it costs at most one call per coin per day, for the new finished day. Closes are
+    shared across users, so the cost follows the number of distinct coins, not clicks.
+  - **Worst case for one user** opening all 50 watchlist coins every day: about **1,500 calls a
+    month**. With the quotes' worst case (one watchlist tab open around the clock, **about
+    8,640**), that's roughly **10,100 against the 10,000-credit Demo cap**. Realistic use is
+    far below both.
+  - **Future guard, not built:** a per-process daily cap on history fills (like the stock
+    request budget), if the hourly call counts or the Developer Dashboard show charts eating
+    into the quota.
+  - **Open question to CoinGecko:** whether daily closes may be kept indefinitely. Terms 6.1(a)
+    asks for a refresh at least every 24 hours. Charts opened from the watchlist add more
+    stored closes, so the answer matters more now (see the risk note above).
 - **Finnhub's plans are "strictly for personal use"**, with no sharing of data "with anyone or
   any 3rd party without written approval" (terms checked 2026-10-06). Finnhub doesn't require
   attribution. Showing stock data to other users is being gated behind an allowlist (M6a).

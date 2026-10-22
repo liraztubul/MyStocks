@@ -163,6 +163,7 @@ export const t = {
   },
   holding: {
     backToDashboard: 'Back to the dashboard',
+    backToWatchlist: 'Back to the watchlist',
   },
   asset: {
     rangeLabel: 'Chart range',
@@ -205,6 +206,11 @@ export const t = {
     captionAdjusted: 'Closes are split-adjusted; dividends are not included.',
     attributionTiingo: 'Data sourced by Tiingo',
     splitAdjusted: (price: string) => `split-adjusted: ${price}`,
+    latestLabel: 'Latest price',
+    latestSource: 'Finnhub, may be delayed',
+    latestAsOf: (time: string) => `as of ${time} New York time`,
+    latestStale: "Finnhub couldn't be reached; this is the last saved price.",
+    latestUnavailable: 'Latest price unavailable right now.',
     providerNotConfigured: "Stock price history isn't set up on this deployment yet, so there's no chart. Your trades are listed below.",
     stale: (when: string) => `Showing saved prices, last updated ${when}.`,
     staleNever: "Prices couldn't be loaded right now and none are saved yet.",
