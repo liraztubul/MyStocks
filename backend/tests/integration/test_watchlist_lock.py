@@ -42,7 +42,7 @@ class LockProbe:
             coin_auto_picked=True,
         )
 
-    def search(self, query: str):  # type: ignore[no-untyped-def]
+    def search(self, query: str):
         raise AssertionError("unexpected provider call")
 
     get_price_on = get_quotes = search

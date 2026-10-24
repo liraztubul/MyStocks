@@ -18,7 +18,7 @@ VALID_PRODUCTION: dict[str, Any] = {
 
 def make(**overrides: Any) -> Settings:
     # _env_file=None so a developer's local .env can't leak into these tests.
-    return Settings(_env_file=None, **{**VALID_PRODUCTION, **overrides})  # type: ignore[call-arg]
+    return Settings(_env_file=None, **{**VALID_PRODUCTION, **overrides})
 
 
 def test_complete_production_config_is_accepted() -> None:
@@ -59,7 +59,7 @@ def test_short_jwt_secret_is_rejected_in_any_environment() -> None:
 
 
 def test_development_needs_none_of_the_production_settings() -> None:
-    settings = Settings(_env_file=None, jwt_secret_key="d" * 40)  # type: ignore[call-arg]
+    settings = Settings(_env_file=None, jwt_secret_key="d" * 40)
     assert not settings.is_production
 
 

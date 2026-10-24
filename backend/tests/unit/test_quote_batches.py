@@ -26,7 +26,7 @@ from app.market_data.provider import (
 UPDATED = 1791387240  # 2026-10-07 ~13:34 UTC, a probe value
 
 
-def coingecko(handler) -> CoinGeckoProvider:  # type: ignore[no-untyped-def]
+def coingecko(handler) -> CoinGeckoProvider:
     return CoinGeckoProvider(httpx2.Client(transport=httpx2.MockTransport(handler)))
 
 

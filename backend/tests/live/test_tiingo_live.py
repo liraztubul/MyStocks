@@ -20,7 +20,7 @@ pytestmark = pytest.mark.live_network
 
 def _key(monkeypatch: pytest.MonkeyPatch) -> str | None:
     monkeypatch.delenv("TIINGO_API_KEY", raising=False)
-    return Settings().tiingo_api_key  # type: ignore[call-arg]
+    return Settings().tiingo_api_key
 
 
 def test_tiingo_daily_bars_have_the_expected_shape(monkeypatch: pytest.MonkeyPatch) -> None:

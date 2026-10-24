@@ -85,7 +85,7 @@ def cookie_header(token: str) -> dict[str, str]:
     return {"Cookie": f"{AUTH_COOKIE_NAME}={token}"}
 
 
-def assert_cookie_cleared(response) -> None:  # type: ignore[no-untyped-def]
+def assert_cookie_cleared(response) -> None:
     set_cookie = response.headers["set-cookie"].lower()
     assert set_cookie.startswith(f"{AUTH_COOKIE_NAME}=")
     assert "max-age=0" in set_cookie

@@ -29,7 +29,7 @@ def test_concurrent_first_writes_make_one_record(
     rendezvous = threading.Barrier(2)
     real_identify = asset_identity._identify
 
-    def identify_after_rendezvous(*args, **kwargs):  # type: ignore[no-untyped-def]
+    def identify_after_rendezvous(*args, **kwargs):
         try:
             rendezvous.wait(timeout=1)
         except threading.BrokenBarrierError:

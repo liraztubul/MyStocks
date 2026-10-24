@@ -57,7 +57,7 @@ def test_reset_clears_everything() -> None:
     assert limiter.retry_after("ip", LIMIT) is None
 
 
-def test_memory_is_bounded_and_fails_open(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_memory_is_bounded_and_fails_open(monkeypatch) -> None:
     monkeypatch.setattr(rate_limit, "MAX_TRACKED_KEYS", 3)
     limiter, _ = limiter_with_clock()
     for _ in range(3):

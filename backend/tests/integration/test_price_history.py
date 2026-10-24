@@ -72,7 +72,7 @@ def service(fake: FakeHistory, clock: Clock) -> PriceHistoryService:
     return PriceHistoryService({AssetType.CRYPTO: fake}, clock=clock)
 
 
-def closes(service: PriceHistoryService, db: Session, start: date, end: date):  # type: ignore[no-untyped-def]
+def closes(service: PriceHistoryService, db: Session, start: date, end: date):
     return service.closes(db, AssetType.CRYPTO, "coin", start, end)
 
 
