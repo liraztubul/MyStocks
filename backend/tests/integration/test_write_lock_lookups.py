@@ -24,6 +24,7 @@ from app.market_data.provider import Quote
 from app.market_data.service import MarketData
 from app.schemas.transaction import TransactionCreate, TransactionUpdate
 from app.services import watchlist
+from app.services.asset_identity import lock_user_writes
 from tests.integration.test_watchlist_lock import LockProbe
 
 WHEN = datetime(2026, 9, 1, 12, tzinfo=UTC)
@@ -199,7 +200,7 @@ def test_transaction_restarts_when_the_recorded_coin_vanishes(
 ) -> None:
     held(db_session, owner, "ETH", "ethereum")
     provider = RuleProvider("ethereum")
-    lock, calls = concurrent_removal_on_first_lock(db_session, transactions_api._lock_ledger, "ETH")
+    lock, calls = concurrent_removal_on_first_lock(db_session, lock_user_writes, "ETH")
     monkeypatch.setattr(transactions_api, "_lock_ledger", lock)
 
     created = transactions_api.create_transaction(
@@ -223,7 +224,7 @@ def test_watchlist_add_restarts_when_the_recorded_coin_vanishes(
 ) -> None:
     held(db_session, owner, "BTC", "bitcoin")
     provider = RuleProvider("bitcoin")
-    lock, calls = concurrent_removal_on_first_lock(db_session, watchlist.lock_user_writes, "BTC")
+    lock, calls = concurrent_removal_on_first_lock(db_session, lock_user_writes, "BTC")
     monkeypatch.setattr(watchlist, "lock_user_writes", lock)
 
     watchlist.add(db_session, market(provider), owner.id, "BTC", AssetType.CRYPTO, None)

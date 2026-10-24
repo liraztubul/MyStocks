@@ -13,11 +13,10 @@ import pytest
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
-from app.api.transactions import _lock_ledger
 from app.db.models import Transaction, User, UserAsset
 from app.domain.enums import AssetType, Side
 from app.services import asset_identity
-from app.services.asset_identity import ensure_asset_identity
+from app.services.asset_identity import ensure_asset_identity, lock_user_writes
 
 
 def test_concurrent_first_writes_make_one_record(
@@ -51,7 +50,7 @@ def test_concurrent_first_writes_make_one_record(
         try:
             with Session(engine) as db:
                 start.wait()
-                _lock_ledger(db, user_id)
+                lock_user_writes(db, user_id)
                 ensure_asset_identity(db, user_id, "BTC", AssetType.CRYPTO, "bitcoin")
                 db.add(
                     Transaction(

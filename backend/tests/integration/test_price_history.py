@@ -9,10 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models import DailyClose, PriceHistoryCoverage
 from app.domain.enums import AssetType
-from app.market_data.history import DailyBar
+from app.market_data.history import STALE_RATE_LIMITED, STALE_UNAVAILABLE, DailyBar
 from app.market_data.price_history import (
-    STALE_RATE_LIMITED,
-    STALE_UNAVAILABLE,
     PriceHistoryService,
 )
 from app.market_data.provider import ProviderUnavailableError, RateLimitedError, SymbolNotFoundError

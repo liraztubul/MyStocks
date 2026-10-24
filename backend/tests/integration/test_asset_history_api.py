@@ -11,9 +11,8 @@ from fastapi.testclient import TestClient
 from app.core.config import settings
 from app.domain.enums import AssetType
 from app.main import app
-from app.market_data.history import DailyBar
+from app.market_data.history import STALE_UNAVAILABLE, DailyBar
 from app.market_data.price_history import (
-    STALE_UNAVAILABLE,
     PriceHistoryService,
     shared_price_history,
 )
