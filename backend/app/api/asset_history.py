@@ -246,7 +246,7 @@ def get_history(
             coin_id,
         )
     ):
-        markers = []
+        markers: list[MarkerRead] = []
         undrawn = [_undrawn(t, _trade_day(t, asset_type), "different_coin") for t in trades]
     else:
         markers, undrawn = _place_trades(
