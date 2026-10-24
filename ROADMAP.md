@@ -265,8 +265,7 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   - **Each unavailable reason** has its own message, the wait in minutes included.
   - **History queries** stay in memory for the visit (no refetch on focus, no polling), and
     logging in clears earlier queries.
-  - **There is no logout yet;** an expired session clears everything except the session
-    query.
+  - **Logging out, or a session ending,** clears them (see Logout).
 - **Request budget:** counts our own attempts only (404s and errors included): 45 in a rolling
   hour, 950 per New York calendar day, and a pause after a 429 (`Retry-After`, else 15 minutes).
   When spent, the chart is `available: false` with `rate_limited`. Counts reset on restart, by
@@ -296,6 +295,39 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   cost don't follow the split-adjusted chart; only the chart and its markers adjust. **Until it
   is, enter trades in post-split quantities and prices** (e.g. after a 4:1 split, 1 share bought
   at 400 is entered as 4 shares at 100). Then the latest price and the holding's value agree.
+
+## Logout
+
+- **Server:** `POST /api/auth/logout` always answers 204 and always clears the cookie with the
+  attributes login set it with (HttpOnly, Secure per `COOKIE_SECURE`, SameSite=Lax, Path=/). It
+  works with a missing, expired or invalid cookie, so it is idempotent.
+- **Revocation:** `users.token_version` (INTEGER NOT NULL DEFAULT 0), carried in each token's
+  `ver` claim. A logout with a valid, current token bumps it in one atomic UPDATE, so every
+  token issued before stops working, on every device. A stale or invalid token changes
+  nothing. No extra query per request: `get_current_user` already loads the user row.
+- **Old tokens:** tokens without `ver` are rejected, so everyone logs in once more after the
+  deploy (also tokens the old instance issues while the new one starts).
+- **Client, in order:** tell other tabs; cancel every query; show the login page with "You're
+  logged out."; remove every cached query and pending write; replace the URL with `/` (Back
+  doesn't return to the private page); then POST, with the same waking-server retry as queries.
+  If it still fails, the login page says the session may stay active on this device for up
+  to 30 minutes, with "Try again".
+- **No silent re-login:** after an explicit logout, `/me` isn't asked again (focus or
+  otherwise) until the next login, here or in another tab. A reload does ask, so a reload
+  before a failed logout POST got through finds the session still active.
+- **Other tabs:** `BroadcastChannel('mystocks-auth')` carries `logout` and `login`. As a
+  fallback, any tab whose `/me` turns from a user to nobody (or to someone else) drops its
+  cached data.
+- **Any 401** outside login, register and `/me` (from a query or a write) ends the session
+  with "session timed out", through one handler on the query client. A wrong password stays a
+  form error.
+- **Header button:** "Log out", 44 px high, icon only below 480 px (named by its aria-label),
+  the arrow mirrored in RTL.
+- **Possible improvements (not built):**
+  - A sessionStorage "logout pending" flag, so a reload after a failed logout POST retries it
+    instead of finding the session active.
+  - The 30-minute token without a refresh flow is a separate product decision (see Known MVP
+    limitations, Auth).
 
 ## Provider data and licensing
 
@@ -386,9 +418,10 @@ on this: Finnhub's terms carry no date, and Tiingo rewrote its storage rules on 
 - **No refresh tokens.** The access token is a 30-minute JWT in an httpOnly cookie. When it
   expires, the user is simply logged out and must log in again, even mid-session. A
   refresh-token flow (long-lived, rotating, server-revocable) is deferred.
-- **No server-side revocation.** A JWT stays valid until it expires; there is no logout
-  endpoint or token blocklist yet. Deleting the user does invalidate their token, because
-  `get_current_user` reloads the user on every request.
+- **Revocation is all-or-nothing.** Logging out bumps `users.token_version`, which ends every
+  session of that user on every device; there is no per-device session list. Deleting the
+  user also invalidates their token, because `get_current_user` reloads the user on every
+  request.
 - **No rate limiting** on `/api/auth/login` or `/api/auth/register`.
 - **No email verification or password reset.**
 - **CSRF** relies on `SameSite=Lax` plus JSON-only request bodies. That's sufficient while
@@ -463,7 +496,8 @@ on this: Finnhub's terms carry no date, and Tiingo rewrote its storage rules on 
 - **Price defaults only when it's fresh.** If the market price is stale or unavailable, the
   field starts empty and is required, and a hint says why.
 - **Write errors are handled by status.** 400/422 show the server's text and keep the dialog
-  open; 401 drops cached data and returns to the login page with a "session timed out" notice;
+  open; 401 drops cached data and returns to the login page with a "session timed out" notice
+  (one handler on the query client for every non-auth request, queries included);
   403 shows a generic "not allowed"; 429 uses `Retry-After`; anything else is a generic retry
   message. This applies to the add form and the delete dialog too.
 - **Errors carry an icon and words, never colour alone** (`FormError`); field errors are tied
@@ -718,7 +752,10 @@ CoinGecko responses on 2026-09-30.
   - Neon's Postgres major version matching the dump client: it didn't (Neon runs 18.6, the
     client was 17), and the backup failed; the client is now `postgres:18` with a version check
     that fails with a clear message if Neon moves ahead again (2026-10-07);
-  - whether Render counts spin-up time toward instance hours.
+  - whether Render counts spin-up time toward instance hours;
+  - logout: Vercel's `/api` rewrite passes the clearing `Set-Cookie` (`Max-Age=0`) through, the
+    cookie is gone in the browser afterwards, and the old token replayed against `/api/auth/me`
+    gets 401.
 - **Migrations must stay backward-compatible** (expand then contract), because the old
   instance serves while the new one migrates.
 

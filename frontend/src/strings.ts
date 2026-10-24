@@ -48,6 +48,11 @@ export const t = {
     switchToRegister: 'Need an account? Register',
     switchToLogin: 'Have an account? Log in',
     sessionExpired: 'Your session timed out, so nothing was saved. Log in again and pick up where you left off.',
+    logOut: 'Log out',
+    loggedOut: "You're logged out.",
+    logoutFailed:
+      "We couldn't reach the server to finish logging out. Your session may stay active on this device for up to 30 minutes.",
+    retryLogout: 'Try again',
   },
   writeErrors: {
     rejected: (detail: string) => `That didn't go through: ${detail}`,

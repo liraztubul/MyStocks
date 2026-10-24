@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createTransaction, deleteTransaction, listTransactions } from '../api/transactions'
-import { isSessionExpired } from '../api/writeErrors'
-import { useExpireSession } from './useAuth'
 import { PORTFOLIO_KEY } from './usePortfolio'
 
 const TRANSACTIONS_KEY = ['transactions']
@@ -20,21 +18,12 @@ function useInvalidateLedger() {
     ])
 }
 
-function useExpireOn401() {
-  const expire = useExpireSession()
-  return (error: Error) => {
-    if (isSessionExpired(error)) expire()
-  }
-}
-
 export function useCreateTransaction() {
   const invalidate = useInvalidateLedger()
-  const onError = useExpireOn401()
-  return useMutation({ mutationFn: createTransaction, onSuccess: invalidate, onError })
+  return useMutation({ mutationFn: createTransaction, onSuccess: invalidate })
 }
 
 export function useDeleteTransaction() {
   const invalidate = useInvalidateLedger()
-  const onError = useExpireOn401()
-  return useMutation({ mutationFn: deleteTransaction, onSuccess: invalidate, onError })
+  return useMutation({ mutationFn: deleteTransaction, onSuccess: invalidate })
 }

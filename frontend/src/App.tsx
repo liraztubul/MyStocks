@@ -2,7 +2,7 @@ import { isServerWaking } from './api/client'
 import { AppShell } from './components/AppShell'
 import { FormError } from './components/FormError'
 import { ServerWakeNotice } from './components/ServerWakeNotice'
-import { useMe } from './hooks/useAuth'
+import { useMe, useSessionSync } from './hooks/useAuth'
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes, useParams } from 'react-router'
 import { RowsSkeleton } from './components/Skeleton'
@@ -28,6 +28,7 @@ function LegacyHoldingRedirect() {
 
 export function App() {
   const { data: user, error, isPending } = useMe()
+  useSessionSync(user)
 
   // The first request of a visit is the one that usually meets a sleeping backend.
   if (isPending) {
@@ -66,7 +67,7 @@ export function App() {
       </AppShell>
     )
   }
-  // Logged out (a 401 from /me, or useExpireSession after a write). Checked before the error
+  // Logged out (a 401 from /me, a 401 anywhere else, or a logout). Checked before the error
   // branch: once we know the answer is "logged out", a failed background refetch (say, the server
   // fell asleep) must not replace a half-filled login form with an error screen.
   if (user === null) return <LoginPage />

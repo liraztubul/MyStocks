@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, Request, Response, status
-from sqlalchemy import select
+from typing import Annotated
+
+from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
@@ -16,8 +18,10 @@ from app.core.security import (
     CurrentUser,
     burn_verify_time,
     create_access_token,
+    decode_access_token,
     hash_password,
     secrets_equal,
+    token_version,
     verify_password,
 )
 from app.db.models import User
@@ -86,14 +90,37 @@ def login(body: LoginRequest, request: Request, response: Response, db: DbSessio
 
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
-        value=create_access_token(user.id),
+        value=create_access_token(user),
         max_age=settings.access_token_expire_minutes * 60,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        path="/",
+        **_cookie_attributes(),
     )
     return user
+
+
+def _cookie_attributes() -> dict[str, object]:
+    # Shared by login and logout: a cookie is only deleted if these match the ones it was set with.
+    return {"httponly": True, "secure": settings.cookie_secure, "samesite": "lax", "path": "/"}
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    db: DbSession,
+    access_token: Annotated[str | None, Cookie(alias=AUTH_COOKIE_NAME)] = None,
+) -> Response:
+    """Always 204, and always clears the cookie (also when it is missing, expired or invalid).
+    A valid, current token also bumps the user's token_version, so every token issued before,
+    on any device, stops working."""
+    claims = decode_access_token(access_token) if access_token else None
+    if claims is not None:
+        user = db.get(User, claims.user_id)
+        if user is not None and token_version(user) == claims.version:
+            db.execute(
+                update(User).where(User.id == user.id).values(token_version=User.token_version + 1)
+            )
+            db.commit()
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie(AUTH_COOKIE_NAME, **_cookie_attributes())  # type: ignore[arg-type]
+    return response
 
 
 @router.get("/me", response_model=UserRead)

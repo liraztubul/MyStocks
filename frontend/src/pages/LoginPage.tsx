@@ -5,7 +5,7 @@ import { Icon } from '../components/Icon'
 import { Ledgie, Sparkles } from '../components/Ledgie'
 import { ServerWakeNotice } from '../components/ServerWakeNotice'
 import { ThemeToggle } from '../components/ThemeToggle'
-import { useLogin, useRegister, useSessionNotice } from '../hooks/useAuth'
+import { useLogin, useRegister, useRetryLogout, useSessionNotice } from '../hooks/useAuth'
 import { t } from '../strings'
 
 type Mode = 'login' | 'register'
@@ -20,6 +20,7 @@ export function LoginPage() {
   const registerMutation = useRegister()
   const mutation = mode === 'login' ? loginMutation : registerMutation
   const sessionNotice = useSessionNotice()
+  const retryLogout = useRetryLogout()
 
   useEffect(() => {
     document.title = `${mode === 'login' ? t.auth.logIn : t.auth.createAccount} · ${t.appName}`
@@ -68,6 +69,23 @@ export function LoginPage() {
             <Icon name="clock" size={18} className="notice-icon" />
             <span>{t.auth.sessionExpired}</span>
           </p>
+        )}
+        {sessionNotice === 'logged_out' && (
+          <p role="status" className="notice notice-info">
+            <Icon name="check" size={18} className="notice-icon" />
+            <span>{t.auth.loggedOut}</span>
+          </p>
+        )}
+        {sessionNotice === 'logout_failed' && (
+          <div role="alert" className="notice">
+            <Icon name="alert" size={18} className="notice-icon" />
+            <div className="notice-body">
+              <span>{t.auth.logoutFailed}</span>
+              <button type="button" className="button button-secondary" onClick={() => void retryLogout()}>
+                {t.auth.retryLogout}
+              </button>
+            </div>
+          </div>
         )}
         <form onSubmit={handleSubmit} className="stack">
           <label className="field">

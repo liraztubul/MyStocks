@@ -4,7 +4,10 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import './index.css'
 import { retryDelay, retryUnlessDefinite } from './api/client'
+import { sessionCaches } from './api/session'
+import { isSessionExpired } from './api/writeErrors'
 import { App } from './App'
+import { expireSession } from './hooks/useAuth'
 
 // Queries ride out a backend cold start (see api/client.ts); mutations are never retried
 // automatically, because repeating a POST the server may already have applied isn't safe.
@@ -21,7 +24,9 @@ function redirectLegacyHash() {
 redirectLegacyHash()
 window.addEventListener('hashchange', redirectLegacyHash)
 
-const queryClient = new QueryClient({
+// Any 401 outside login, register and /me ends the session (see api/session.ts).
+const queryClient: QueryClient = new QueryClient({
+  ...sessionCaches(isSessionExpired, () => expireSession(queryClient)),
   defaultOptions: {
     queries: { retry: retryUnlessDefinite, retryDelay },
   },

@@ -5,6 +5,7 @@ import { t } from '../strings'
 import { Icon, type IconName } from './Icon'
 import { Ledgie } from './Ledgie'
 import { ServerWakeNotice } from './ServerWakeNotice'
+import { LogoutButton } from './LogoutButton'
 import { ThemeToggle } from './ThemeToggle'
 
 const LINKS: { to: string; label: string; icon: IconName }[] = [
@@ -46,6 +47,7 @@ export function AppShell({ user, children }: { user: User; children: ReactNode }
               {user.email}
             </span>
             <ThemeToggle />
+            <LogoutButton />
           </div>
         </div>
       </header>

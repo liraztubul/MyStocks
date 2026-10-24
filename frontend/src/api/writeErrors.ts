@@ -2,8 +2,8 @@ import { t } from '../strings'
 import { ApiError, isServerWaking } from './client'
 
 // What to tell the user when a ledger write fails. Only 400/422 are "fix your input": the server
-// text is shown as-is because it names the exact problem. A 401 never reaches here; the mutation
-// hooks hand it to useExpireSession, which swaps to the login page.
+// text is shown as-is because it names the exact problem. A 401 never reaches here; the query
+// client hands it to expireSession (main.tsx), which swaps to the login page.
 // Stock market data this deployment may not show this user (see backend app.market_data.access):
 // actions answer 403 with this code, views return the data with prices null and the same code.
 export const NOT_AVAILABLE_ON_DEPLOYMENT = 'not_available_on_deployment'

@@ -1,8 +1,5 @@
-import { useEffect } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addToWatchlist, listWatchlist, removeFromWatchlist } from '../api/watchlist'
-import { isSessionExpired } from '../api/writeErrors'
-import { useExpireSession } from './useAuth'
 
 const WATCHLIST_KEY = ['watchlist']
 
@@ -10,10 +7,8 @@ const WATCHLIST_KEY = ['watchlist']
 // monthly cap), so polling faster would only re-read its cache. Paused while the tab is hidden.
 const POLL_MS = 5 * 60_000
 
-// A 401 here means the session expired while the page was open: swap to the login page.
 export function useWatchlist() {
-  const expire = useExpireSession()
-  const query = useQuery({
+  return useQuery({
     queryKey: WATCHLIST_KEY,
     queryFn: listWatchlist,
     staleTime: POLL_MS,
@@ -21,21 +16,13 @@ export function useWatchlist() {
     refetchIntervalInBackground: false,
     placeholderData: keepPreviousData,
   })
-  useEffect(() => {
-    if (isSessionExpired(query.error)) expire()
-  }, [query.error, expire])
-  return query
 }
 
 function useWatchlistWrite<T, R>(mutationFn: (arg: T) => Promise<R>) {
   const queryClient = useQueryClient()
-  const expire = useExpireSession()
   return useMutation({
     mutationFn,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: WATCHLIST_KEY }),
-    onError: (error) => {
-      if (isSessionExpired(error)) expire()
-    },
   })
 }
 
