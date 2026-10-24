@@ -32,9 +32,12 @@ HUNDRED = Decimal(100)
 
 
 class PnlTrade(Trade, Protocol):
-    symbol: str
-    price: Decimal
-    fee: Decimal
+    @property
+    def symbol(self) -> str: ...
+    @property
+    def price(self) -> Decimal: ...
+    @property
+    def fee(self) -> Decimal: ...
 
 
 T = TypeVar("T", bound=PnlTrade)

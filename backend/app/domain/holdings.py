@@ -16,9 +16,13 @@ QUANTITY_STEP = Decimal("1e-10")
 
 
 class Trade(Protocol):
-    side: Side
-    quantity: Decimal
-    executed_at: datetime
+    # Read-only members: the replay only reads a trade, so ORM rows and frozen test doubles fit.
+    @property
+    def side(self) -> Side: ...
+    @property
+    def quantity(self) -> Decimal: ...
+    @property
+    def executed_at(self) -> datetime: ...
 
 
 class Split(Protocol):
