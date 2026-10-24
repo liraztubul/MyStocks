@@ -90,4 +90,5 @@ def test_a_watched_record_is_in_use_even_without_trades(db_session: Session) -> 
     with pytest.raises(Exception) as refused:
         ensure_asset_identity(db_session, owner.id, "BTC", AssetType.CRYPTO, "bitcoin-cash")
     assert getattr(refused.value, "code", None) == "asset_identity_conflict"
-    assert db_session.get(UserAsset, (owner.id, "BTC")).provider_id == "bitcoin"
+    record = db_session.get(UserAsset, (owner.id, "BTC"))
+    assert record is not None and record.provider_id == "bitcoin"

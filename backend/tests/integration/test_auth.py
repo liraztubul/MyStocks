@@ -153,6 +153,7 @@ def test_logout_with_an_invalid_or_stale_token_changes_nothing(client: TestClien
     client.post("/api/auth/logout", headers=cookie_header(token))
     assert client.post("/api/auth/login", json=CREDENTIALS).status_code == 200
     fresh = client.cookies.get(AUTH_COOKIE_NAME)
+    assert fresh is not None
     client.cookies.clear()
     client.post("/api/auth/logout", headers=cookie_header(token))
     assert client.get("/api/auth/me", headers=cookie_header(fresh)).status_code == 200

@@ -155,7 +155,7 @@ def test_startup_allowlist_check(
         assert records == []
     else:
         assert [r.levelno for r in records] == [level]
-        assert text in records[0].getMessage()
+        assert text is not None and text in records[0].getMessage()
     # Addresses are personal data: only their number is logged.
     assert "@" not in caplog.text
 
