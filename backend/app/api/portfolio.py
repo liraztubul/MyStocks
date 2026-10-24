@@ -194,6 +194,8 @@ def get_holdings(
         price = valued.prices[position.symbol]
         change = valued.day_changes.get(position.symbol)
         basis = valued.day_change_basis(position.symbol)
+        # A basis implies the quote it was computed from.
+        reference = price.quote if basis else None
         rows.append(
             HoldingRead(
                 symbol=position.symbol,
@@ -219,8 +221,8 @@ def get_holdings(
                 day_change=change.amount if change else None,
                 day_change_pct=change.pct if change else None,
                 day_change_basis=basis,
-                day_change_reference_price=price.quote.reference_price if basis else None,
-                day_change_reference_at=price.quote.reference_at if basis else None,
+                day_change_reference_price=reference.reference_price if reference else None,
+                day_change_reference_at=reference.reference_at if reference else None,
             )
         )
     return rows
