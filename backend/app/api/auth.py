@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal, TypedDict
 
 from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 from sqlalchemy import select, update
@@ -97,7 +97,14 @@ def login(body: LoginRequest, request: Request, response: Response, db: DbSessio
     return user
 
 
-def _cookie_attributes() -> dict[str, object]:
+class CookieAttributes(TypedDict):
+    httponly: bool
+    secure: bool
+    samesite: Literal["lax"]
+    path: str
+
+
+def _cookie_attributes() -> CookieAttributes:
     # Shared by login and logout: a cookie is only deleted if these match the ones it was set with.
     return {"httponly": True, "secure": settings.cookie_secure, "samesite": "lax", "path": "/"}
 
@@ -119,7 +126,7 @@ def logout(
             )
             db.commit()
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    response.delete_cookie(AUTH_COOKIE_NAME, **_cookie_attributes())  # type: ignore[arg-type]
+    response.delete_cookie(AUTH_COOKIE_NAME, **_cookie_attributes())
     return response
 
 
