@@ -815,6 +815,38 @@ CoinGecko responses on 2026-09-30.
 - **Migrations must stay backward-compatible** (expand then contract), because the old
   instance serves while the new one migrates.
 
+### CI (hardening, 2026-10-24)
+
+- **Gates:** backend: `ruff check`, `ruff format --check`, `mypy`, migrations (upgrade, `alembic
+  check`, downgrade), `pytest` against `postgres:18-alpine` (production's major version);
+  frontend: `lint`, `typecheck`, `npm test` (Node's built-in runner), `build`, `check:csp`.
+- **mypy** (2.4.0, pinned with ruff 0.17.2; pytest and the rest stay ranges): strict for
+  `app.*`, listed flag by flag in `pyproject.toml` (`strict = true` in an override also made
+  the tests strict); tests get `check_untyped_defs`. Zero errors, no baseline. `# type: ignore`
+  only in tests, for deliberate test doubles. One known mypy limitation: an explicit
+  `Portfolio[Transaction]` fails its bound check (mypy checks it before it can see through
+  SQLAlchemy's `Mapped` columns), so `app/api/portfolio.py` uses `Position[Any]` /
+  `Portfolio[Any]`; the inferred types elsewhere are still checked.
+- **Failures don't block anything yet.** `main` has no branch protection or ruleset (public API,
+  2026-10-24); only deploys wait for the checks (Render `autoDeployTrigger: checksPass`).
+  **Recommended ruleset on `main`:** require the `backend` and `frontend` status checks, block
+  force-pushes and deletion, with the owner as a bypass actor (direct pushes stay possible;
+  keep the job names, since a rename would block merges).
+- **Unverified:** Vercel's *Deployment Checks* setting (holding production until `backend` and
+  `frontend` pass) is a dashboard option nobody has confirmed is on, or offered on Hobby (see
+  "Vercel CD fallback").
+- **Unverified:** Neon's current minor version (18.6 when last read, 2026-10-07) and its
+  database collation. Both Docker images default to `en_US.utf8`; a different collation only
+  changes the order of text with mixed case or punctuation (we sort uppercase tickers and
+  emails).
+- **docker-compose is still on `postgres:16-alpine`.** Moving it to 18 isn't a tag change: the
+  18 image keeps its data in `/var/lib/postgresql/18/docker` and declares its volume at
+  `/var/lib/postgresql`, while compose mounts `postgres_data` at `/var/lib/postgresql/data`.
+  Plan: `pg_dump` the dev database (or accept losing local test data), change the image to
+  `postgres:18-alpine` and the mount to `postgres_data:/var/lib/postgresql`, start with an
+  empty volume (`docker compose down -v`), restore, then run the suite. What the 18 image does
+  with the old mount (refuse to start or start empty) wasn't tested.
+
 ### Personality (M5.7)
 
 - **Font: Rubik (variable 300–900, SIL OFL 1.1),** self-hosted in `frontend/public/fonts/`.
