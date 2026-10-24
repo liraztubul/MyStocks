@@ -76,7 +76,10 @@ def _listing(row: Any) -> CoinListing | None:
     if not isinstance(row, dict):
         return None
     coin_id, symbol, name = row.get("id"), row.get("symbol"), row.get("name")
-    if not all(isinstance(v, str) and v.strip() for v in (coin_id, symbol, name)):
+    # Each checked by name (not in a loop) so the type checker sees all three as str.
+    if not (isinstance(coin_id, str) and isinstance(symbol, str) and isinstance(name, str)):
+        return None
+    if not (coin_id.strip() and symbol.strip() and name.strip()):
         return None
     rank = row.get("market_cap_rank")
     # bool is an int subclass; anything but a positive int is "no rank".
