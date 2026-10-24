@@ -63,6 +63,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      # Unit tests on Node's built-in runner (type stripping; no test framework dependency).
+      - run: npm test
       - run: npm run build
       # Same check the Vercel build runs: the CSP must allow exactly the built inline scripts.
       - run: npm run check:csp
