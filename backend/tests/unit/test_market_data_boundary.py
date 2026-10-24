@@ -11,7 +11,7 @@ Two independent checks, so renaming or re-exporting can't slip past both:
 """
 
 import ast
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from fastapi.dependencies.models import Dependant
@@ -31,7 +31,7 @@ from app.market_data.service import shared_market_data
 from app.market_data.stock_history import shared_stock_history
 
 # Each ungated getter and the only function allowed to depend on it.
-GATES = {
+GATES: dict[Callable[..., object], Callable[..., object]] = {
     shared_market_data: user_market_data,
     shared_price_history: user_price_history,
     shared_coin_index: user_coin_index,
@@ -91,9 +91,9 @@ def _api_routes(routes: Sequence[BaseRoute]) -> Iterator[APIRoute]:
 
 def _raw_dependency_parents(
     dependant: Dependant, parent: object
-) -> Iterator[tuple[object, object]]:
+) -> Iterator[tuple[Callable[..., object], object]]:
     for sub in dependant.dependencies:
-        if sub.call in GATES:
+        if sub.call is not None and sub.call in GATES:
             yield sub.call, parent
         yield from _raw_dependency_parents(sub, sub.call)
 

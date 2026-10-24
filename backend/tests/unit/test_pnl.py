@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from app.domain.enums import Side
-from app.domain.pnl import OversoldLedgerError, portfolio_pnl, position_pnl
+from app.domain.pnl import OversoldLedgerError, Position, portfolio_pnl, position_pnl
 
 T0 = datetime(2026, 1, 1, 15, 0, tzinfo=timezone.utc)
 D = Decimal
@@ -61,7 +61,7 @@ def test_worked_example_two_buys_partial_sell_then_valued_at_120() -> None:
 
 
 def test_empty_history() -> None:
-    position = position_pnl("AAPL", [])
+    position: Position[FakeTrade] = position_pnl("AAPL", [])
     assert (position.quantity, position.average_cost, position.cost_basis, position.realized) == (
         0,
         0,
