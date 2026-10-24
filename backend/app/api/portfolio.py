@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
@@ -59,7 +60,10 @@ class PriceResult:
 class Ledger:
     trades: list[Transaction]
     splits: list[StockSplit]
-    positions: dict[str, Position]
+    # Position[Any], not Position[Transaction]: mypy checks an explicit type argument against the
+    # PnlTrade bound before it can see through SQLAlchemy's Mapped columns, and wrongly refuses
+    # Transaction (an inferred Position[Transaction] passes). Any here only loosens sale.trade.
+    positions: dict[str, Position[Any]]
 
     def splits_of(self, symbol: str) -> list[StockSplit]:
         return [s for s in self.splits if s.symbol == symbol]
@@ -130,7 +134,8 @@ def _fetch_prices(
 
 @dataclass(frozen=True)
 class ValuedPortfolio:
-    portfolio: Portfolio[Transaction]
+    # Any for the same reason as Ledger.positions.
+    portfolio: Portfolio[Any]
     refs: dict[str, AssetRef]
     asset_types: dict[str, AssetType]
     prices: dict[str, PriceResult]
