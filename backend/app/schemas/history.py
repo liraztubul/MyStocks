@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from datetime import date as datetime_date
 from typing import Literal
 
 from pydantic import BaseModel
@@ -37,7 +38,8 @@ class MarkerRead(BaseModel):
     # The bar the marker is drawn on. Differs from trade_date only when snapped: the trade's day
     # has no close (e.g. a weekend), so the marker sits on the next bar.
     date: date
-    trade_date: date
+    # The field above shadows the type inside this class body, so name the type another way.
+    trade_date: datetime_date
     snapped: bool
     quantity: DecimalString
     # What the user actually paid or received.
