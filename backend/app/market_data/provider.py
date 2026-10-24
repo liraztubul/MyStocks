@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Protocol
 
 from app.domain.enums import AssetType
@@ -20,7 +20,7 @@ class AssetMatch:
     market_cap_rank: object = None
 
 
-class ReferenceKind(str, Enum):
+class ReferenceKind(StrEnum):
     # Stocks: the last session's official close (Finnhub `pc`).
     PREVIOUS_CLOSE = "previous_close"
     # Crypto: the price 24h before as_of, derived from CoinGecko's rolling 24h change %.
@@ -52,7 +52,7 @@ class Quote:
     change_24h_pct: Decimal | None = None
 
 
-class PriceKind(str, Enum):
+class PriceKind(StrEnum):
     CLOSE = "close"
     LIVE = "live"
 

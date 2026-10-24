@@ -20,7 +20,7 @@ docker-compose.yml   postgres + backend + frontend
 
 ## Setup
 
-Prerequisites: Python 3.10+, Node 22+, and (optionally) Docker.
+Prerequisites: Python 3.12+, Node 22+, and (optionally) Docker.
 
 ```bash
 git clone https://github.com/liraztubul/MyStocks.git

@@ -2,7 +2,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from app.domain.enums import Side
@@ -61,11 +61,7 @@ class Oversell:
     held_before: Decimal
 
 
-T = TypeVar("T", bound=Trade)
-S = TypeVar("S", bound=Split)
-
-
-def chronological(
+def chronological[T: Trade](
     trades: Iterable[T], tiebreak: Callable[[T], tuple[Any, ...]] = lambda _: ()
 ) -> list[T]:
     """Trades in the order the ledger replays them: by executed_at, buys before sells.
@@ -80,16 +76,16 @@ def chronological(
 
 
 @dataclass(frozen=True)
-class TradeStep(Generic[T]):
+class TradeStep[T: Trade]:
     trade: T
 
 
 @dataclass(frozen=True)
-class SplitStep(Generic[S]):
+class SplitStep[S: Split]:
     split: S
 
 
-def ledger(
+def ledger[T: Trade, S: Split](
     trades: Iterable[T],
     splits: Iterable[S] = (),
     tiebreak: Callable[[T], tuple[Any, ...]] = lambda _: (),

@@ -20,7 +20,7 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Generic, Protocol, TypeVar
+from typing import Protocol
 
 from app.domain.cost_basis import AverageCost, CostBasisFactory
 from app.domain.enums import Side
@@ -40,9 +40,6 @@ class PnlTrade(Trade, Protocol):
     def fee(self) -> Decimal: ...
 
 
-T = TypeVar("T", bound=PnlTrade)
-
-
 class OversoldLedgerError(ValueError):
     """A symbol's history sells more than it held at some point (e.g. a buy was deleted)."""
 
@@ -52,7 +49,7 @@ class OversoldLedgerError(ValueError):
 
 
 @dataclass(frozen=True)
-class RealizedSale(Generic[T]):
+class RealizedSale[T: PnlTrade]:
     trade: T
     average_cost: Decimal
     cost_basis: Decimal
@@ -69,7 +66,7 @@ class Valuation:
 
 
 @dataclass(frozen=True)
-class Position(Generic[T]):
+class Position[T: PnlTrade]:
     symbol: str
     quantity: Decimal
     average_cost: Decimal
@@ -85,7 +82,7 @@ class Position(Generic[T]):
         return Valuation(price, market_value, unrealized, pct)
 
 
-def position_pnl(
+def position_pnl[T: PnlTrade](
     symbol: str,
     trades: Iterable[T],
     cost_basis: CostBasisFactory = AverageCost,
@@ -121,7 +118,7 @@ def position_pnl(
         )
 
 
-def positions_by_symbol(
+def positions_by_symbol[T: PnlTrade](
     trades: Iterable[T], cost_basis: CostBasisFactory = AverageCost, splits: Iterable[Split] = ()
 ) -> dict[str, Position[T]]:
     grouped: dict[str, list[T]] = defaultdict(list)
@@ -138,7 +135,7 @@ def positions_by_symbol(
 
 
 @dataclass(frozen=True)
-class Holding(Generic[T]):
+class Holding[T: PnlTrade]:
     position: Position[T]
     # None when no price was available; the holding still counts toward cost basis.
     valuation: Valuation | None
@@ -146,7 +143,7 @@ class Holding(Generic[T]):
 
 
 @dataclass(frozen=True)
-class Portfolio(Generic[T]):
+class Portfolio[T: PnlTrade]:
     holdings: tuple[Holding[T], ...]
     positions: dict[str, Position[T]]
     # Every open position, priced or not.
@@ -162,7 +159,7 @@ class Portfolio(Generic[T]):
     unpriced_symbols: tuple[str, ...]
 
 
-def total_realized(positions: Iterable[Position[T]]) -> Decimal:
+def total_realized[T: PnlTrade](positions: Iterable[Position[T]]) -> Decimal:
     with exact():
         return sum((p.realized for p in positions), ZERO)
 
@@ -173,7 +170,7 @@ def _allocation(valuation: Valuation | None, total_market_value: Decimal) -> Dec
     return valuation.market_value / total_market_value * HUNDRED
 
 
-def portfolio_pnl(
+def portfolio_pnl[T: PnlTrade](
     trades: Iterable[T],
     price_of: Callable[[str], Decimal | None],
     cost_basis: CostBasisFactory = AverageCost,
@@ -181,7 +178,7 @@ def portfolio_pnl(
     return value_portfolio(positions_by_symbol(trades, cost_basis), price_of)
 
 
-def value_portfolio(
+def value_portfolio[T: PnlTrade](
     positions: dict[str, Position[T]], price_of: Callable[[str], Decimal | None]
 ) -> Portfolio[T]:
     """Value already-replayed positions; price_of is asked only about open positions."""
