@@ -23,7 +23,9 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "hypothesis>=6.100",
-    "ruff>=0.6",
+    # Exact pins: a new release of either can fail CI with no change of ours.
+    "ruff==0.17.2",
+    "mypy==2.4.0",
 ]
 
 [build-system]
@@ -44,6 +46,29 @@ markers = [
 line-length = 100
 target-version = "py310"
 extend-exclude = ["alembic/versions"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app", "tests"]
+plugins = ["pydantic.mypy"]
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+# Strict for the application. Listed flag by flag: `strict = true` in an override also turns
+# strict checks on for the other modules (tests), seen with mypy 2.4.
+[[tool.mypy.overrides]]
+module = ["app.*"]
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+extra_checks = true
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

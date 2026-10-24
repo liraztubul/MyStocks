@@ -43,6 +43,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
+      - run: mypy
       - name: Migrations apply cleanly and match the models
         run: |
           alembic upgrade head
