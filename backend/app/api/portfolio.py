@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.security import CurrentUser
-from app.db.models import Transaction, UserAsset
+from app.db.models import StockSplit, Transaction, UserAsset
 from app.db.session import DbSession
 from app.domain.daily_change import DailyChange, daily_change, total_daily_change
 from app.domain.enums import AssetType
@@ -55,10 +55,21 @@ class PriceResult:
         return self.error_code == StockDataNotAvailableError.code
 
 
-def _replay(db: Session, user_id: uuid.UUID) -> tuple[list[Transaction], dict[str, Position]]:
+@dataclass(frozen=True)
+class Ledger:
+    trades: list[Transaction]
+    splits: list[StockSplit]
+    positions: dict[str, Position]
+
+    def splits_of(self, symbol: str) -> list[StockSplit]:
+        return [s for s in self.splits if s.symbol == symbol]
+
+
+def _replay(db: Session, user_id: uuid.UUID) -> Ledger:
     trades = list(db.scalars(select(Transaction).where(Transaction.user_id == user_id)))
+    splits = list(db.scalars(select(StockSplit).where(StockSplit.user_id == user_id)))
     try:
-        return trades, positions_by_symbol(trades)
+        return Ledger(trades, splits, positions_by_symbol(trades, splits=splits))
     except OversoldLedgerError as exc:
         # Only reachable after deleting a buy (DELETE isn't re-validated); any numbers computed
         # from such a history would be wrong, so refuse rather than guess.
@@ -136,7 +147,8 @@ class ValuedPortfolio:
 def _load_valued_portfolio(
     db: Session, user_id: uuid.UUID, market_data: UserMarketData
 ) -> ValuedPortfolio:
-    trades, positions = _replay(db, user_id)
+    ledger = _replay(db, user_id)
+    trades, positions = ledger.trades, ledger.positions
     refs = _asset_refs(db, user_id, trades)
     asset_types = {s: ref.asset_type for s, ref in refs.items()}
     open_symbols = {s: refs[s] for s, p in positions.items() if p.quantity > 0}
@@ -150,17 +162,20 @@ def _load_valued_portfolio(
     for trade in trades:
         by_symbol[trade.symbol].append(trade)
     day_changes = {
-        symbol: _day_change(by_symbol[symbol], prices[symbol].quote) for symbol in open_symbols
+        symbol: _day_change(by_symbol[symbol], ledger.splits_of(symbol), prices[symbol].quote)
+        for symbol in open_symbols
     }
     return ValuedPortfolio(
         value_portfolio(positions, price_of), refs, asset_types, prices, day_changes
     )
 
 
-def _day_change(trades: list[Transaction], quote: Quote | None) -> DailyChange | None:
+def _day_change(
+    trades: list[Transaction], splits: list[StockSplit], quote: Quote | None
+) -> DailyChange | None:
     if quote is None:
         return None
-    return daily_change(trades, quote.price, quote.reference_price, quote.reference_at)
+    return daily_change(trades, quote.price, quote.reference_price, quote.reference_at, splits)
 
 
 @router.get("/holdings", response_model=list[HoldingRead])
@@ -251,7 +266,7 @@ def get_summary(
 
 @router.get("/realized-pl", response_model=RealizedPlRead)
 def get_realized_pl(user: CurrentUser, db: DbSession) -> RealizedPlRead:
-    _, positions = _replay(db, user.id)
+    positions = _replay(db, user.id).positions
     sales = sorted(
         (sale for position in positions.values() for sale in position.sales),
         key=lambda s: (s.trade.executed_at, s.trade.created_at),

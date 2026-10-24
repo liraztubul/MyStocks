@@ -18,9 +18,11 @@ import { isSplitAdjusted, retryMinutes, unavailableMessage } from '../components
 import { FormError } from '../components/FormError'
 import { Icon } from '../components/Icon'
 import { PageHeading } from '../components/PageHeading'
+import { formatRatio } from '../components/splits'
 import PriceChart from '../components/PriceChart'
 import { useAssetSearch, useLatestQuote } from '../hooks/useAssets'
 import { useAssetHistory } from '../hooks/useAssetHistory'
+import { useSplits } from '../hooks/useSplits'
 import { t } from '../strings'
 
 const TRADINGVIEW_URL = 'https://www.tradingview.com/'
@@ -141,6 +143,7 @@ function AssetBody({
           <Icon name="alert" size={18} className="notice-icon" />
           <div>{unavailableText(data)}</div>
         </div>
+        {data.asset_type === 'stock' && <RecordedSplits symbol={symbol} />}
         <TradesTable data={data} />
       </>
     )
@@ -170,6 +173,7 @@ function AssetBody({
       ) : (
         <ChartFigure data={data} symbol={symbol} />
       )}
+      {data.asset_type === 'stock' && <RecordedSplits symbol={symbol} />}
       {!data.is_stale && data.as_of && <p className="hint">{t.asset.asOf(formatDateTime(data.as_of))}</p>}
       <p className="hint attribution">
         <a href={TRADINGVIEW_URL} rel="noreferrer" referrerPolicy="no-referrer">
@@ -190,6 +194,24 @@ function AssetBody({
       </p>
       <TradesTable data={data} />
     </>
+  )
+}
+
+// The user's own splits of this stock, which their holding follows. Not drawn on the chart: the
+// line is already split-adjusted from the provider's data.
+function RecordedSplits({ symbol }: { symbol: string }) {
+  const { data } = useSplits(symbol)
+  if (!data || data.length === 0) return null
+  return (
+    <p className="hint recorded-splits">
+      {t.splits.recorded}{' '}
+      {data.map((split, i) => (
+        <span key={split.id}>
+          {i > 0 && ', '}
+          <bdi dir="ltr">{formatRatio(split)}</bdi> {t.splits.onDay(formatDay(split.effective_date))}
+        </span>
+      ))}
+    </p>
   )
 }
 

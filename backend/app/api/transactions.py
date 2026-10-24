@@ -22,6 +22,7 @@ from app.services.asset_identity import (
     needs_lookup,
 )
 from app.services.asset_identity import lock_user_writes as _lock_ledger
+from app.services.ledger import symbol_ledger
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -40,10 +41,8 @@ def _get_owned(db: Session, user_id: uuid.UUID, transaction_id: uuid.UUID) -> Tr
 def _ensure_no_oversell(db: Session, user_id: uuid.UUID, symbol: str) -> None:
     # Runs after the pending change is flushed, so the query already sees the ledger as it
     # would be if the write were committed.
-    trades = db.scalars(
-        select(Transaction).where(Transaction.user_id == user_id, Transaction.symbol == symbol)
-    ).all()
-    oversell = find_oversell(trades)
+    # Through the user's recorded splits: after a 4:1 split, selling 4 of 1 bought is fine.
+    oversell = find_oversell(*symbol_ledger(db, user_id, symbol))
     if oversell is not None:
         sell = oversell.sell
         raise HTTPException(

@@ -290,11 +290,67 @@ phase: a blocked user can watch stocks, but sees them without prices, like a blo
   hours (2026-10-22) returned null `last`, `lastSaleTimestamp` and `quoteTimestamp`, so the
   price's freshness can't be told, and the Starter plan's no-storage rule (§1.6) applies to it
   as well.
-- **Known gap (out of scope): the ledger is not split-aware.** Holdings, cost basis and P/L use
-  the share counts and prices as entered. Across a split, a position's quantity and per-share
-  cost don't follow the split-adjusted chart; only the chart and its markers adjust. **Until it
-  is, enter trades in post-split quantities and prices** (e.g. after a 4:1 split, 1 share bought
-  at 400 is entered as 4 shares at 100). Then the latest price and the holding's value agree.
+- **The ledger follows the splits the user records** (see Stock splits below). Trades are entered
+  exactly as executed; the chart's markers divide their price by Tiingo's later splits, and
+  holdings use the recorded splits only, so nothing is adjusted twice.
+- **Corrected advice (2026-10-24):** the earlier tip here ("enter trades in post-split
+  quantities and prices") was wrong: the chart divides a pre-split trade's price by the split
+  again, so its marker sat at a fraction of the line. Enter trades as executed and record the
+  split. Anyone who followed the old tip: change those trades back to what was executed, then
+  record the split (or don't record it, or the shares are counted twice).
+
+## Stock splits
+
+### Slice A (done)
+
+- **Storage:** `stock_splits` (user, symbol, `effective_date` as a New York date, `numerator`,
+  `denominator`), its own table so the trade columns keep their strict checks. DB checks: both
+  numbers above zero and not equal; one split per user, symbol and date; the symbol's
+  `user_assets` record must exist (no ON DELETE, like the watchlist). The migration only adds the
+  table, so it is safe while the old instance still serves.
+- **API:** `POST/GET/PATCH/DELETE /api/splits` (`GET ?symbol=`). Under the user write lock, with
+  no provider call: stocks only (422), not in the future in New York (422), ratio within
+  1:10000 .. 10000:1 (a typo guard, 422), one per date (409 `split_exists`), shares held at the
+  start of the date above zero (400; this also rules out a date on or before the first trade),
+  and, after the change is flushed, no sell larger than what was held (400, naming the sell).
+  Delete runs the same oversell check. Each split comes back with `shares_before` and
+  `shares_after`.
+- **Replay:** splits come before the trades of their New York date (the ex-date trades at the
+  new price, the same rule as the chart's adjustment). Shares x ratio, rounded down to 10
+  places (a ratio like 1:3 never terminates, and "sell all" must close the position); total
+  cost basis unchanged, so the average cost is divided by the ratio; realized P/L unaffected.
+  The oversell check, holdings, realized P/L and daily change all replay splits; portfolio
+  endpoints load them with one extra query.
+- **"Asset in use":** a split is a use of the symbol's stock identity, so the symbol can't
+  become crypto while one exists. Deleting the trades under a split leaves it in place,
+  converting nothing.
+- **Daily change:** nothing (shown as unavailable) for a symbol whose split takes effect on the
+  quote's session or later, because whether Finnhub's previous close is already split-adjusted
+  that day is unknown.
+- **UI:** "Buy" / "Stock split" on the Transactions page; the split form asks for the symbol, the
+  ex-date and "Every [old] old shares became [new]". Split rows in the trades table show the
+  ratio inside `<bdi dir="ltr">` (never "1:4" in RTL), "reverse" for a reverse split, no price
+  or fee, and Edit / Delete. Both dialogs state what the split did ("on <date>: your 10 AAPL
+  shares became 40") and show the server's refusal if a later sell relies on it. The asset
+  page lists "Splits you recorded" under the chart; no chart marker.
+- **Unverified:** on an ex-date before the open, Finnhub's latest price may still be the
+  pre-split close while the holding already counts post-split shares, so the holding's value
+  may be off until the first post-split quote. Not probed (needs a real ex-date).
+- **Deploy window:** an old instance (without this code) deleting a user's last trade of a
+  symbol that has a split would try to drop its `user_assets` record and get a foreign-key
+  error (500) instead of keeping it. Only possible during the switch, and only for splits
+  recorded on the new instance.
+
+### Slice B (not built)
+
+- **`split_check`:** compare Tiingo's splits from the first trade on with the recorded ones
+  (missing, not in Tiingo, ratio differs, date differs within 10 days) and show a non-blocking
+  note to allowlisted users. Computed per history request, never stored. Its wording must
+  warn anyone who entered trades in post-split numbers not to add the split.
+- **"Record this split":** a button on that note that fills in the split form (never writes
+  by itself).
+- **Before relying on Tiingo's ratio:** probe a real reverse split. `splitFactor` is assumed to
+  be new / old shares (0.1 for 1:10); only forward splits have been checked.
 
 ## Logout
 

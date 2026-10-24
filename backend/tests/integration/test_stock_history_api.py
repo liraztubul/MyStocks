@@ -140,6 +140,26 @@ def test_markers_keep_the_price_paid_and_sit_on_the_adjusted_line(api: TestClien
     ]
 
 
+def test_a_recorded_split_does_not_move_the_markers(api: TestClient) -> None:
+    # The user records the same 2:1 split the provider reports: holdings follow it, the chart's
+    # markers still use only the provider's splits (no double adjustment).
+    before = stock_trade(api, "AAPL", "2026-03-03T15:00:00Z", "2470")
+    split = {"symbol": "AAPL", "effective_date": "2026-03-05", "numerator": "2", "denominator": "1"}
+    assert api.post("/api/splits", json=split).status_code == 201
+    [marker] = history(api, "AAPL", range="1M").json()["markers"]
+    assert (
+        marker["transaction_id"],
+        marker["quantity"],
+        marker["price"],
+        marker["chart_price"],
+    ) == (
+        before["id"],
+        "3",
+        "2470",
+        "1235",
+    )
+
+
 def test_all_starts_at_the_first_trade(api: TestClient, stocks: FakeStocks) -> None:
     stock_trade(api, "AAPL", "2020-08-14T15:00:00Z", "100")
     body = history(api, "AAPL", range="ALL").json()

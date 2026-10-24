@@ -1,15 +1,16 @@
 """Cost-basis strategies: how a position's cost is tracked across buys and sells.
 
-A strategy instance tracks one symbol. The P/L engine feeds it trades in replay order and asks
-it, on each sell, how much cost basis leaves the position. That's the only thing that differs
-between methods (average cost vs FIFO lots), so swapping one in is a new class, not an engine
-change. Only average cost exists today.
+A strategy instance tracks one symbol. The P/L engine feeds it trades (and stock splits) in
+replay order and asks it, on each sell, how much cost basis leaves the position. That's the only
+thing that differs between methods (average cost vs FIFO lots), so swapping one in is a new
+class, not an engine change. Only average cost exists today.
 """
 
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Protocol
 
+from app.domain.holdings import Split, split_quantity
 from app.domain.precision import exact
 
 ZERO = Decimal(0)
@@ -31,6 +32,10 @@ class CostBasisStrategy(Protocol):
 
     def sell(self, quantity: Decimal) -> Decimal:
         """Remove `quantity` units and return the cost basis that left with them."""
+        ...
+
+    def split(self, split: Split) -> None:
+        """Convert the units held to post-split units; the cost basis doesn't change."""
         ...
 
 
@@ -80,3 +85,7 @@ class AverageCost:
             self._quantity -= quantity
             self._total_cost -= removed
         return removed
+
+    def split(self, split: Split) -> None:
+        # Total cost stays, so the average (total / quantity) is divided by the ratio.
+        self._quantity = split_quantity(self._quantity, split)

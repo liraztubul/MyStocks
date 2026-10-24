@@ -6,6 +6,9 @@ Assumptions:
   So realized P/L per sell = (sell_price - average_cost) * quantity - sell_fee.
 - Unrealized P/L = (current_price - average_cost) * held_quantity; its % is relative to the
   cost basis of what's held (fees included).
+- Stock splits the user recorded convert the shares held (rounded down to 10 places) and leave
+  the cost basis as it is, so the average cost is divided by the ratio; nothing is realized.
+  A split comes before the trades of its own New York date (see holdings.ledger).
 - Everything is USD; there is no currency conversion.
 - No rounding: all arithmetic runs in a 60-significant-digit context, wide enough that
   products of Numeric(28, 10) values are exact. Round only when presenting.
@@ -21,7 +24,7 @@ from typing import Generic, Protocol, TypeVar
 
 from app.domain.cost_basis import AverageCost, CostBasisFactory
 from app.domain.enums import Side
-from app.domain.holdings import Trade, chronological
+from app.domain.holdings import Split, SplitStep, Trade, ledger
 from app.domain.precision import exact
 
 ZERO = Decimal(0)
@@ -80,15 +83,22 @@ class Position(Generic[T]):
 
 
 def position_pnl(
-    symbol: str, trades: Iterable[T], cost_basis: CostBasisFactory = AverageCost
+    symbol: str,
+    trades: Iterable[T],
+    cost_basis: CostBasisFactory = AverageCost,
+    splits: Iterable[Split] = (),
 ) -> Position[T]:
-    """Replay one symbol's trades. All trades must belong to `symbol`."""
+    """Replay one symbol's trades and splits. All of them must belong to `symbol`."""
     strategy = cost_basis()
     sales: list[RealizedSale[T]] = []
     with exact():
         # Price and fee complete the tiebreak, so identical-timestamp trades always replay in
         # the same order whatever order they were loaded in.
-        for trade in chronological(trades, tiebreak=lambda t: (t.price, t.fee)):
+        for step in ledger(trades, splits, tiebreak=lambda t: (t.price, t.fee)):
+            if isinstance(step, SplitStep):
+                strategy.split(step.split)
+                continue
+            trade = step.trade
             if trade.side is Side.BUY:
                 strategy.buy(trade.quantity, trade.price, trade.fee)
                 continue
@@ -109,12 +119,19 @@ def position_pnl(
 
 
 def positions_by_symbol(
-    trades: Iterable[T], cost_basis: CostBasisFactory = AverageCost
+    trades: Iterable[T], cost_basis: CostBasisFactory = AverageCost, splits: Iterable[Split] = ()
 ) -> dict[str, Position[T]]:
     grouped: dict[str, list[T]] = defaultdict(list)
     for trade in trades:
         grouped[trade.symbol].append(trade)
-    return {symbol: position_pnl(symbol, grouped[symbol], cost_basis) for symbol in sorted(grouped)}
+    splits_of: dict[str, list[Split]] = defaultdict(list)
+    for split in splits:
+        splits_of[split.symbol].append(split)
+    # A split without trades of its symbol makes no position (it would hold nothing).
+    return {
+        symbol: position_pnl(symbol, grouped[symbol], cost_basis, splits_of[symbol])
+        for symbol in sorted(grouped)
+    }
 
 
 @dataclass(frozen=True)

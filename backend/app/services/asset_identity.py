@@ -14,7 +14,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import CodedHTTPError
-from app.db.models import Transaction, User, UserAsset, WatchlistItem
+from app.db.models import StockSplit, Transaction, User, UserAsset, WatchlistItem
 from app.domain.enums import AssetType
 from app.market_data.access import UserMarketData
 from app.market_data.provider import AmbiguousSymbolError, MarketDataError
@@ -38,7 +38,8 @@ def asset_in_use(
     db: Session, user_id: uuid.UUID, symbol: str, excluding: uuid.UUID | None = None
 ) -> bool:
     """Whether anything still relies on the symbol's recorded meaning: a trade (other than the
-    one being edited) or a watchlist entry, which points at the record and has no trades."""
+    one being edited), a watchlist entry, which points at the record and has no trades, or a
+    recorded stock split (which may outlive the trades it was added for)."""
     trades = select(Transaction.id).where(
         Transaction.user_id == user_id, Transaction.symbol == symbol
     )
@@ -47,7 +48,8 @@ def asset_in_use(
     watched = select(WatchlistItem.symbol).where(
         WatchlistItem.user_id == user_id, WatchlistItem.symbol == symbol
     )
-    return bool(db.scalar(select(exists(trades)))) or bool(db.scalar(select(exists(watched))))
+    splits = select(StockSplit.id).where(StockSplit.user_id == user_id, StockSplit.symbol == symbol)
+    return any(db.scalar(select(exists(q))) for q in (trades, watched, splits))
 
 
 class LookupNeeded(Exception):

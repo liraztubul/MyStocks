@@ -12,6 +12,11 @@ i.e. relative to the capital exposed since the reference.
 
 Assumptions: fees are excluded (this measures price movement; fees live in cost basis and
 realized P/L). Missing or non-positive inputs give None, never a guessed number.
+
+Stock splits: quantities are counted through the splits the user recorded. A split that takes
+effect on the reference session or later gives None: whether the quote's reference price (and,
+before the open, its price) is already in post-split terms isn't known, and a wrong guess
+would show the whole ratio as a gain or loss.
 """
 
 from collections.abc import Iterable
@@ -20,7 +25,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from app.domain.enums import Side
-from app.domain.holdings import held_quantity
+from app.domain.holdings import NEW_YORK, Split, held_quantity
 from app.domain.pnl import PnlTrade
 from app.domain.precision import exact
 
@@ -41,9 +46,15 @@ def daily_change(
     price: Decimal | None,
     reference_price: Decimal | None,
     reference_at: datetime | None,
+    splits: Iterable[Split] = (),
 ) -> DailyChange | None:
-    """One symbol's change since `reference_at`. `trades` must all belong to that symbol."""
+    """One symbol's change since `reference_at`. `trades` and `splits` must all belong to that
+    symbol."""
     if price is None or reference_price is None or reference_at is None or reference_price <= 0:
+        return None
+    splits = list(splits)
+    session = reference_at.astimezone(NEW_YORK).date()
+    if any(s.effective_date >= session for s in splits):
         return None
     trades = list(trades)
     before = [t for t in trades if t.executed_at < reference_at]
@@ -51,8 +62,8 @@ def daily_change(
     with exact():
         bought = sum((t.quantity * t.price for t in since if t.side is Side.BUY), ZERO)
         sold = sum((t.quantity * t.price for t in since if t.side is Side.SELL), ZERO)
-        value_at_reference = held_quantity(before) * reference_price
-        amount = held_quantity(trades) * price - value_at_reference - bought + sold
+        value_at_reference = held_quantity(before, splits) * reference_price
+        amount = held_quantity(trades, splits) * price - value_at_reference - bought + sold
         base = value_at_reference + bought
         return DailyChange(amount, amount / base * HUNDRED if base > 0 else None, base)
 
