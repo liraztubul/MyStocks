@@ -10,7 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        # Production's major version (Neon runs PostgreSQL 18). docker-compose stays on 16 for now:
+        # the 18 image moved its data directory (see ROADMAP, Deployment).
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: mystocks
           POSTGRES_PASSWORD: mystocks
