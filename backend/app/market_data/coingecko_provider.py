@@ -242,7 +242,8 @@ class CoinGeckoProvider:
         return result.coin_id, result.name, True
 
     def _simple_prices(self, coin_ids: Sequence[str]) -> dict[str, Any]:
-        return self._get(
+        # Parsed JSON is untyped: name the shape the callers read.
+        prices: dict[str, Any] = self._get(
             "/simple/price",
             {
                 "ids": ",".join(coin_ids),
@@ -251,6 +252,7 @@ class CoinGeckoProvider:
                 "include_24hr_change": "true",
             },
         ).body
+        return prices
 
     def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
         coin_id, coin_name, auto_picked = self._coin(symbol, provider_id)

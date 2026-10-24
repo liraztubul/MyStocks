@@ -90,7 +90,8 @@ class CachedProvider:
             quote = self._inner.get_quote(symbol, provider_id)
         except (ProviderUnavailableError, RateLimitedError):
             with self._lock:
-                last_good = self._last_good.get(key)
+                # The TTL caches are untyped; name what this one holds.
+                last_good: Quote | None = self._last_good.get(key)
             if last_good is None:
                 raise
             stale = replace(last_good, is_stale=True)
