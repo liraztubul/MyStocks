@@ -94,21 +94,21 @@ class FakeSession:
 
 def test_get_current_user_without_cookie_raises_401() -> None:
     with pytest.raises(HTTPException) as exc:
-        get_current_user(db=FakeSession(None), access_token=None)
+        get_current_user(db=FakeSession(None), access_token=None)  # type: ignore[arg-type]  # a stand-in for Session
     assert exc.value.status_code == 401
 
 
 def test_get_current_user_for_deleted_user_raises_401() -> None:
     token = create_access_token(user())
     with pytest.raises(HTTPException) as exc:
-        get_current_user(db=FakeSession(None), access_token=token)
+        get_current_user(db=FakeSession(None), access_token=token)  # type: ignore[arg-type]  # a stand-in for Session
     assert exc.value.status_code == 401
 
 
 def test_get_current_user_returns_user_for_valid_token() -> None:
     alice = user(2)
     token = create_access_token(alice)
-    assert get_current_user(db=FakeSession(alice), access_token=token) is alice
+    assert get_current_user(db=FakeSession(alice), access_token=token) is alice  # type: ignore[arg-type]  # a stand-in for Session
 
 
 def test_get_current_user_rejects_a_token_from_before_a_logout() -> None:
@@ -116,5 +116,5 @@ def test_get_current_user_rejects_a_token_from_before_a_logout() -> None:
     token = create_access_token(alice)
     alice.token_version = 3  # logged out since
     with pytest.raises(HTTPException) as exc:
-        get_current_user(db=FakeSession(alice), access_token=token)
+        get_current_user(db=FakeSession(alice), access_token=token)  # type: ignore[arg-type]  # a stand-in for Session
     assert exc.value.status_code == 401

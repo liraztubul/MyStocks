@@ -56,7 +56,9 @@ def test_rules_lookup_runs_without_the_write_lock(engine: Engine) -> None:
         user_id = user.id
     probe = LockProbe(engine, user_id)
     market_data = UserMarketData(
-        MarketData({AssetType.STOCK: probe, AssetType.CRYPTO: probe}), stock_data_available=True
+        # A probe, not a full provider: it fails any call the test doesn't expect.
+        MarketData({AssetType.STOCK: probe, AssetType.CRYPTO: probe}),  # type: ignore[dict-item]
+        stock_data_available=True,
     )
     try:
         with Session(engine) as db:

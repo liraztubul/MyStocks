@@ -76,9 +76,9 @@ def test_create_looks_up_the_coin_without_the_lock(engine: Engine) -> None:
         with Session(engine) as db:
             transactions_api.create_transaction(
                 buy("BTC"),
-                SimpleNamespace(id=user_id),
+                SimpleNamespace(id=user_id),  # type: ignore[arg-type]  # only .id is read
                 db,
-                market(probe),  # type: ignore[arg-type]
+                market(probe),
             )
         assert probe.lock_free == [True]
         with Session(engine) as check:
@@ -94,9 +94,9 @@ def test_update_to_a_new_coin_looks_it_up_without_the_lock(engine: Engine) -> No
         with Session(engine) as db:
             created = transactions_api.create_transaction(
                 buy("AAPL", AssetType.STOCK),
-                SimpleNamespace(id=user_id),
+                SimpleNamespace(id=user_id),  # type: ignore[arg-type]  # only .id is read
                 db,
-                market(probe),  # type: ignore[arg-type]
+                market(probe),
             )
             assert probe.lock_free == []  # a stock needs no lookup
             transactions_api.update_transaction(
@@ -204,9 +204,9 @@ def test_transaction_restarts_when_the_recorded_coin_vanishes(
 
     created = transactions_api.create_transaction(
         buy("ETH"),
-        SimpleNamespace(id=owner.id),
+        SimpleNamespace(id=owner.id),  # type: ignore[arg-type]  # only .id is read
         db_session,
-        market(provider),  # type: ignore[arg-type]
+        market(provider),
     )
 
     # First pass: the record was in use, so no lookup; it vanished before the lock, so the flow
