@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from app.domain.enums import Side
 from app.domain.holdings import find_oversell, held_quantity
 
-T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 @dataclass

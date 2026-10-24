@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -37,7 +37,7 @@ class StubProvider:
 
     def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
         self._maybe_fail()
-        as_of = datetime(2026, 3, 13, tzinfo=timezone.utc)
+        as_of = datetime(2026, 3, 13, tzinfo=UTC)
         return Quote(symbol, self.asset_type, Decimal("0.1"), "USD", as_of)
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:

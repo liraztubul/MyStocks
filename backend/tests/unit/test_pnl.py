@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -7,7 +7,7 @@ import pytest
 from app.domain.enums import Side
 from app.domain.pnl import OversoldLedgerError, Position, portfolio_pnl, position_pnl
 
-T0 = datetime(2026, 1, 1, 15, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 1, 1, 15, 0, tzinfo=UTC)
 D = Decimal
 
 

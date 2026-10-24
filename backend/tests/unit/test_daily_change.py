@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from hypothesis import given, settings
@@ -9,7 +9,7 @@ from app.domain.daily_change import daily_change, total_daily_change
 from app.domain.enums import Side
 
 D = Decimal
-REF_AT = datetime(2026, 10, 5, 4, 0, tzinfo=timezone.utc)  # 00:00 New York (EDT)
+REF_AT = datetime(2026, 10, 5, 4, 0, tzinfo=UTC)  # 00:00 New York (EDT)
 BEFORE = REF_AT - timedelta(days=3)
 TODAY = REF_AT + timedelta(hours=11)
 

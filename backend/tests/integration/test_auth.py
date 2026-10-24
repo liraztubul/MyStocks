@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
@@ -109,7 +109,7 @@ def test_logout_ends_every_session_of_the_user(client: TestClient) -> None:
     phone = logged_in(client)
     me = client.get("/api/auth/me").json()
     # Another device's session: same user and version, issued a minute earlier (a distinct token).
-    issued = datetime.now(timezone.utc) - timedelta(minutes=1)
+    issued = datetime.now(UTC) - timedelta(minutes=1)
     laptop = jwt.encode(
         {"sub": me["id"], "ver": 0, "iat": issued, "exp": issued + timedelta(minutes=30)},
         settings.jwt_secret_key,

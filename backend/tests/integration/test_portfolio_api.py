@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -20,9 +20,9 @@ from app.market_data.provider import (
 from app.market_data.service import MarketData, shared_market_data
 
 PASSWORD = "correct-horse-battery"
-FETCHED_AT = datetime(2026, 10, 2, 20, 0, tzinfo=timezone.utc)
+FETCHED_AT = datetime(2026, 10, 2, 20, 0, tzinfo=UTC)
 # 00:00 New York (EDT) on the quote's session, as the Finnhub adapter computes it.
-SESSION_START = datetime(2026, 10, 2, 4, 0, tzinfo=timezone.utc)
+SESSION_START = datetime(2026, 10, 2, 4, 0, tzinfo=UTC)
 
 
 class Clock:

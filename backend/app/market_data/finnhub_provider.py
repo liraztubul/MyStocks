@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -25,7 +25,7 @@ MAX_SEARCH_RESULTS = 8
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class FinnhubProvider:
@@ -87,7 +87,7 @@ class FinnhubProvider:
         # Finnhub answers unknown symbols with 200 and all-zero fields rather than a 404.
         if not price or not timestamp:
             raise SymbolNotFoundError(f"No US stock quote found for {symbol}.")
-        as_of = datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+        as_of = datetime.fromtimestamp(int(timestamp), tz=UTC)
         previous_close = body.get("pc")
         # A missing or zero previous close (unknown symbol, first trading day) means there's no
         # base to measure from; a 0 base would turn the whole price into a bogus "change".

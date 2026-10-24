@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -47,7 +47,7 @@ class FakeProvider:
 
     def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
         self._record("quote")
-        return Quote(symbol, AssetType.STOCK, self.price, "USD", datetime.now(timezone.utc))
+        return Quote(symbol, AssetType.STOCK, self.price, "USD", datetime.now(UTC))
 
     def get_price_on(self, symbol: str, on: date, provider_id: str | None = None) -> PriceOnDate:
         self._record("price_on")
@@ -146,7 +146,7 @@ class FlakyQuotes(FakeProvider):
     def __init__(self) -> None:
         super().__init__()
         self.error: Exception | None = None
-        self.fetched_at = datetime(2026, 3, 13, 20, 0, tzinfo=timezone.utc)
+        self.fetched_at = datetime(2026, 3, 13, 20, 0, tzinfo=UTC)
 
     def get_quote(self, symbol: str, provider_id: str | None = None) -> Quote:
         self.calls.append("quote")
@@ -217,7 +217,7 @@ def test_stale_answer_is_held_for_one_ttl_then_the_provider_is_retried(
     clock.advance(31)
     flaky.error = None
     flaky.price = Decimal("105")
-    flaky.fetched_at = datetime(2026, 3, 16, 14, 0, tzinfo=timezone.utc)
+    flaky.fetched_at = datetime(2026, 3, 16, 14, 0, tzinfo=UTC)
     recovered = cached_flaky.get_quote("AAPL")
     assert (recovered.is_stale, recovered.price) == (False, Decimal("105"))
     assert flaky.calls == ["quote", "quote", "quote"]

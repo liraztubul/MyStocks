@@ -5,7 +5,7 @@
 Finnhub tests are skipped unless FINNHUB_API_KEY is set (env or repo-root .env).
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import httpx2
@@ -47,7 +47,7 @@ def test_finnhub_quote_is_a_positive_decimal(client: httpx2.Client) -> None:
 
 @needs_finnhub_key
 def test_finnhub_free_tier_cannot_price_last_month(client: httpx2.Client) -> None:
-    last_month = datetime.now(timezone.utc).date() - timedelta(days=30)
+    last_month = datetime.now(UTC).date() - timedelta(days=30)
     with pytest.raises(PriceUnavailableError, match="paid"):
         FinnhubProvider(settings.finnhub_api_key, client).get_price_on("AAPL", last_month)
 

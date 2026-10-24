@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from app.market_data.dates import (
@@ -74,7 +74,7 @@ def test_stale_quote_is_not_treated_as_a_holiday_fallback() -> None:
 
 def test_trade_timestamp_is_interpreted_in_new_york_time() -> None:
     # 21:00 UTC on Friday is 17:00 in New York (EDT), still Friday's session.
-    friday_utc = datetime(2026, 3, 13, 21, 0, tzinfo=timezone.utc)
+    friday_utc = datetime(2026, 3, 13, 21, 0, tzinfo=UTC)
     resolved = resolve_stock_price_date(date(2026, 3, 14), friday_utc, MONDAY_MORNING)
     assert resolved is not None
     assert resolved.price_date == date(2026, 3, 13)
@@ -92,10 +92,10 @@ def test_crypto_free_history_window_is_365_days() -> None:
 
 def test_session_start_is_new_york_midnight_across_the_spring_dst_change() -> None:
     # US DST began 2026-03-08. Midnight New York is 05:00 UTC before it and 04:00 UTC after.
-    friday_before = us_session_start(datetime(2026, 3, 6, 21, 0, tzinfo=timezone.utc))
-    monday_after = us_session_start(datetime(2026, 3, 9, 20, 0, tzinfo=timezone.utc))
-    assert friday_before == datetime(2026, 3, 6, 5, 0, tzinfo=timezone.utc)
-    assert monday_after == datetime(2026, 3, 9, 4, 0, tzinfo=timezone.utc)
+    friday_before = us_session_start(datetime(2026, 3, 6, 21, 0, tzinfo=UTC))
+    monday_after = us_session_start(datetime(2026, 3, 9, 20, 0, tzinfo=UTC))
+    assert friday_before == datetime(2026, 3, 6, 5, 0, tzinfo=UTC)
+    assert monday_after == datetime(2026, 3, 9, 4, 0, tzinfo=UTC)
     assert (friday_before.utcoffset(), monday_after.utcoffset()) == (
         timedelta(hours=-5),
         timedelta(hours=-4),
@@ -104,19 +104,17 @@ def test_session_start_is_new_york_midnight_across_the_spring_dst_change() -> No
 
 def test_session_start_across_the_autumn_dst_change() -> None:
     # US DST ended 2026-11-01: Friday 10-30 is EDT (04:00 UTC), Monday 11-02 is EST (05:00 UTC).
-    assert us_session_start(datetime(2026, 10, 30, 20, 0, tzinfo=timezone.utc)) == datetime(
-        2026, 10, 30, 4, 0, tzinfo=timezone.utc
+    assert us_session_start(datetime(2026, 10, 30, 20, 0, tzinfo=UTC)) == datetime(
+        2026, 10, 30, 4, 0, tzinfo=UTC
     )
-    assert us_session_start(datetime(2026, 11, 2, 21, 0, tzinfo=timezone.utc)) == datetime(
-        2026, 11, 2, 5, 0, tzinfo=timezone.utc
+    assert us_session_start(datetime(2026, 11, 2, 21, 0, tzinfo=UTC)) == datetime(
+        2026, 11, 2, 5, 0, tzinfo=UTC
     )
 
 
 def test_late_evening_utc_trade_belongs_to_that_new_york_day() -> None:
     # 00:30 UTC Tuesday is still 20:30 Monday in New York.
-    assert us_session_start(datetime(2026, 10, 6, 0, 30, tzinfo=timezone.utc)).date() == date(
-        2026, 10, 5
-    )
+    assert us_session_start(datetime(2026, 10, 6, 0, 30, tzinfo=UTC)).date() == date(2026, 10, 5)
 
 
 def test_price_before_change() -> None:

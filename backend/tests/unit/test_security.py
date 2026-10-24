@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
@@ -53,7 +53,7 @@ def test_an_unsaved_user_has_version_zero() -> None:
 def test_a_token_without_an_integer_ver_is_rejected(ver: object) -> None:
     payload: dict[str, object] = {
         "sub": str(uuid.uuid4()),
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        "exp": datetime.now(UTC) + timedelta(minutes=5),
     }
     if ver is not None:
         payload["ver"] = ver
@@ -62,7 +62,7 @@ def test_a_token_without_an_integer_ver_is_rejected(ver: object) -> None:
 
 
 def test_expired_token_is_rejected() -> None:
-    past = datetime.now(timezone.utc) - timedelta(hours=1)
+    past = datetime.now(UTC) - timedelta(hours=1)
     token = jwt.encode(
         {"sub": str(uuid.uuid4()), "ver": 0, "iat": past, "exp": past + timedelta(minutes=1)},
         settings.jwt_secret_key,
@@ -76,7 +76,7 @@ def test_token_signed_with_other_key_is_rejected() -> None:
         {
             "sub": str(uuid.uuid4()),
             "ver": 0,
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+            "exp": datetime.now(UTC) + timedelta(minutes=5),
         },
         "some-other-secret-key-of-sufficient-length",
         algorithm=settings.jwt_algorithm,

@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from hypothesis import given, settings
@@ -12,7 +12,7 @@ from app.domain.holdings import held_quantity
 from app.domain.pnl import portfolio_pnl, position_pnl
 from app.domain.precision import exact
 
-T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+T0 = datetime(2026, 1, 1, tzinfo=UTC)
 ZERO = Decimal(0)
 # Only proportional cost removal on partial sells divides; at 60 significant digits its
 # rounding is far below anything a ledger of Numeric(28, 10) values can show.

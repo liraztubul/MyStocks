@@ -14,7 +14,7 @@ import bisect
 import calendar
 import uuid
 from collections.abc import Callable, Sequence
-from datetime import date, timezone
+from datetime import UTC, date
 from decimal import Decimal
 from typing import Annotated
 
@@ -89,7 +89,7 @@ def _range_start(range_: HistoryRange, today: date, first_trade: date | None) ->
 def _trade_day(trade: Transaction, asset_type: AssetType) -> date:
     # Crypto trades all day, and its daily close is the UTC day's; a stock trade belongs to its
     # New York trading date (pre-market and after-hours included).
-    zone = timezone.utc if asset_type is AssetType.CRYPTO else US_MARKET_TZ
+    zone = UTC if asset_type is AssetType.CRYPTO else US_MARKET_TZ
     return trade.executed_at.astimezone(zone).date()
 
 
@@ -226,7 +226,7 @@ def get_history(
         series = quote.coin_id or symbol.lower()
         coin_name, auto_picked = quote.coin_name, quote.coin_auto_picked
 
-    today = history.now().astimezone(timezone.utc).date()
+    today = history.now().astimezone(UTC).date()
     first_trade = _trade_day(trades[0], asset_type) if trades else None
     requested_start = _range_start(range_, today, first_trade)
     try:

@@ -1,7 +1,7 @@
 """Stock splits in the ledger replay. Synthetic trades; every expected value is worked by hand."""
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from app.domain.daily_change import daily_change
@@ -32,7 +32,7 @@ class FakeSplit:
 
 def at(day: date, hour_utc: int = 15) -> datetime:
     # 15:00 UTC is 10:00 or 11:00 in New York: the same New York date.
-    return datetime(day.year, day.month, day.day, hour_utc, tzinfo=timezone.utc)
+    return datetime(day.year, day.month, day.day, hour_utc, tzinfo=UTC)
 
 
 def buy(qty: str, price: str, day: date, fee: str = "0") -> FakeTrade:
@@ -94,7 +94,7 @@ def test_split_on_the_last_trades_day_lets_a_same_day_sell_use_it() -> None:
 
 def test_a_split_comes_before_trades_of_its_day_even_before_midnight_utc() -> None:
     # 03:00 UTC on 3 Feb is 22:00 on 2 Feb in New York: the ex-date's trade, after the split.
-    late = FakeTrade(Side.SELL, D(4), D(110), datetime(2026, 2, 3, 3, tzinfo=timezone.utc))
+    late = FakeTrade(Side.SELL, D(4), D(110), datetime(2026, 2, 3, 3, tzinfo=UTC))
     steps = ledger([late, buy("1", "400", JAN5)], [split(FEB2, "4:1")])
     assert [type(s).__name__ for s in steps] == ["TradeStep", "SplitStep", "TradeStep"]
 
@@ -167,7 +167,7 @@ def test_positions_by_symbol_keeps_splits_to_their_symbol() -> None:
     assert (positions["AAPL"].quantity, positions["MSFT"].quantity) == (D(4), D(1))
 
 
-REF_AT = datetime(2026, 3, 2, 5, tzinfo=timezone.utc)  # 00:00 New York (EST) on MAR2
+REF_AT = datetime(2026, 3, 2, 5, tzinfo=UTC)  # 00:00 New York (EST) on MAR2
 
 
 def test_daily_change_counts_post_split_shares() -> None:

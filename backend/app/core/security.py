@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
@@ -57,7 +57,7 @@ def token_version(user: User) -> int:
 
 
 def create_access_token(user: User) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": str(user.id),
         "ver": token_version(user),

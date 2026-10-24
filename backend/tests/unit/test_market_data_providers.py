@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import httpx2
@@ -21,7 +21,7 @@ from app.market_data.provider import (
 Handler = Callable[[httpx2.Request], httpx2.Response]
 
 FRIDAY_CLOSE_TS = int(datetime(2026, 3, 13, 16, 0, tzinfo=US_MARKET_TZ).timestamp())
-SATURDAY = datetime(2026, 3, 14, 15, 0, tzinfo=timezone.utc)
+SATURDAY = datetime(2026, 3, 14, 15, 0, tzinfo=UTC)
 
 
 def client_for(handler: Handler) -> httpx2.Client:
@@ -223,7 +223,7 @@ def test_finnhub_quote_carries_previous_close_as_reference() -> None:
     assert quote.reference_price == Decimal("333.69")
     assert quote.reference_kind is ReferenceKind.PREVIOUS_CLOSE
     # Session of Friday 2026-03-13 starts at 00:00 New York (EDT) = 04:00 UTC.
-    assert quote.reference_at == datetime(2026, 3, 13, 4, 0, tzinfo=timezone.utc)
+    assert quote.reference_at == datetime(2026, 3, 13, 4, 0, tzinfo=UTC)
 
 
 @pytest.mark.parametrize("pc", ["0", "null"])

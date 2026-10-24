@@ -13,7 +13,7 @@ budget has to come back.
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
 
 from sqlalchemy import func, select
@@ -38,7 +38,7 @@ TAIL_RECHECK = timedelta(minutes=15)
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
